@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "kryptos-sdk"
+version = "0.1.0"
+description = "Tools to develop applications with Kryptos."
+authors = ["Kryptos Authors <contact@whatdomain.fuckme>"]
+license = "Proprietary"
+packages = [{ include = "kryptos" }]
+
+[tool.poetry.scripts]
+kryptos = 'kryptos:main'
+
+[tool.poetry.dependencies]
+python = "^3.7"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0a5"]
+build-backend = "poetry.core.masonry.api"
