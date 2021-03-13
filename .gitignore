@@ -108,3 +108,6 @@ venv.bak/
 
 # Generated locations
 dist
+
+# Kryptos configiration file
+kryptos/config.json
