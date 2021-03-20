@@ -58,12 +58,13 @@ def create_workspace():
 
 def authenticate():
     result = httpx.post(
-        f"http://127.0.0.1:8000/v0/workspace/auth/{WORKSPACE_NAME}", json={"username": USER_NAME, "permissions": [""]}
+        f"http://127.0.0.1:8000/v0/workspace/auth/{WORKSPACE_NAME}",
+        json={"username": USER_NAME, "permissions": ["root"]},
     )
     return result.json()
 
 
-def store__crate_entry(key, value, *, token):
+def store__create_entry(key, value, *, token):
     ciphertext, grants = encrypt_entry(value, NAMESPACE_PK)
 
     result = httpx.post(
@@ -71,7 +72,10 @@ def store__crate_entry(key, value, *, token):
         json={
             "value": ciphertext.decode(),
             "grants": [
-                {"public_key": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(), "value": value.decode()}
+                {
+                    "public_key": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "value": value.decode(),
+                }
                 for public_key, value in grants
             ],
         },
@@ -79,6 +83,7 @@ def store__crate_entry(key, value, *, token):
     )
 
     return result.json()
+
 
 def store__fetch_entry(key, *, token):
     result = httpx.get(
@@ -102,6 +107,7 @@ def store__fetch_entry(key, *, token):
     result["value"] = decrypt_entry(result["value"], active_secret_kek, active_sk)
     return result
 
+
 def store__list_entries(key, *, token):
     result = httpx.get(
         f"http://127.0.0.1:8000/v0/entries/{key}",
@@ -110,20 +116,37 @@ def store__list_entries(key, *, token):
 
     return result.json()
 
+
+def store__delete_entry(key, *, token):
+    result = httpx.delete(
+        f"http://127.0.0.1:8000/v0/entry/{key}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    return result.json()
+
+
 if __name__ == "__main__":
     # temp_sk, temp_pk = generate_keypair()
     # print(temp_sk.encode(encoder=encoding.URLSafeBase64Encoder), temp_pk.encode(encoding.URLSafeBase64Encoder))
 
     workspace_res = create_workspace()
+    print("workspace", workspace_res)
+
     authenticate_res = authenticate()
+    print("auth", authenticate_res)
 
     user_sk = decrypt_with_password(USER_NAME, USER_PASSWORD, authenticate_res["hidden_key"].encode())
     user_sk = PrivateKey(user_sk)
 
     token = decrypt_grant(user_sk, authenticate_res["hidden_token"].encode()).decode()
-    store_create_entry_res = store__crate_entry("fuck", "david", token=token)
-    store_list_entries_res = store__list_entries("fu", token=token)
-    store_fetch_entry_res = store__fetch_entry("fuck", token=token)
+    print("token", token)
 
-    print(store_create_entry_res)
-    print(store_list_entries_res)
+    store_create_entry_res = store__create_entry("fuck", "david", token=token)
+    print("created", store_create_entry_res)
+    store_list_entries_res = store__list_entries("fu", token=token)
+    print("listed", store_list_entries_res)
+    store_fetch_entry_res = store__fetch_entry("fuck", token=token)
+    print("fetched", store_fetch_entry_res)
+    store_delete_entry_res = store__delete_entry("fuck", token=token)
+    print("deleted", store_delete_entry_res)
