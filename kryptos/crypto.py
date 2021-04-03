@@ -29,13 +29,27 @@ def decrypt_with_password(identity, password, ciphertext) -> bytes:
     return SecretBox(password_key).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
 
 
-def encrypt_grant(public_key: PublicKey, plaintext: PrivateKey):
+def encrypt_grant(public_key: PublicKey, secret_key: PrivateKey):
+    plaintext = secret_key.encode(encoder=encoding.RawEncoder)
+    return Box(secret_key, public_key).encrypt(plaintext, encoder=encoding.URLSafeBase64Encoder)
+
+
+def decrypt_grant(public_key: PublicKey, secret_key: PrivateKey, ciphertext: bytes):
+    return Box(secret_key, public_key).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
+
+
+def encrypt_sealed_grant(public_key: PublicKey, plaintext: PrivateKey):
     plaintext = plaintext.encode(encoder=encoding.RawEncoder)
     return SealedBox(public_key).encrypt(plaintext, encoder=encoding.URLSafeBase64Encoder)
 
 
-def decrypt_grant(secret_key: PrivateKey, ciphertext: bytes):
+def decrypt_sealed_grant(secret_key: PrivateKey, ciphertext: bytes):
     return SealedBox(secret_key).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
+
+
+def decrypt_hidden_token(secret_key: PrivateKey, ciphertext: bytes):
+    auth_box_pk = PublicKey(b"etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4=", encoder=encoding.URLSafeBase64Encoder)
+    return Box(secret_key, auth_box_pk).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
 
 
 def encrypt_entry(plaintext, *public_keys):

@@ -7,7 +7,9 @@ from kryptos.crypto import (
     encrypt_entry,
     decrypt_entry,
     encrypt_grant,
-    decrypt_grant,
+    encrypt_sealed_grant,
+    decrypt_sealed_grant,
+    decrypt_hidden_token
 )
 
 WORKSPACE_NAME = "kryptos"
@@ -26,6 +28,7 @@ NAMESPACE_PK = PublicKey(b"X3U0wKsCk82-DECB63k1StpRYDOcGromY1LeveIKqH0=", encode
 def create_workspace():
     hidden_key = USER_SK.encode(encoding.RawEncoder)
     hidden_key = encrypt_with_password(USER_NAME, USER_PASSWORD, hidden_key)
+    print(hidden_key)
     namespace_grant = encrypt_grant(USER_PK, NAMESPACE_SK)
 
     workspace_params = {"name": WORKSPACE_NAME, "display_name": WORKSPACE_DISPLAY_NAME}
@@ -42,7 +45,7 @@ def create_workspace():
         "public_key": NAMESPACE_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
         "grants": [
             {
-                "public_key": USER_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                "grantee_pk": USER_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "value": namespace_grant.decode(),
                 "access": ["read", "write", "delete"]
             }
@@ -90,7 +93,7 @@ def store__create_entry(key, value, *, token):
             "value": ciphertext.decode(),
             "grants": [
                 {
-                    "public_key": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                     "value": value.decode(),
                     "access": ["read", "write", "delete"]
                 }
@@ -102,6 +105,14 @@ def store__create_entry(key, value, *, token):
 
     return result.json()
 
+def store__fetch_namespace_chain(key, *, token):
+    result = httpx.get(
+        f"http://127.0.0.1:8000/v0/chain/{key}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    result = result.json()
+    return result
 
 def store__fetch_entry(key, *, token):
     result = httpx.get(
@@ -116,7 +127,7 @@ def store__fetch_entry(key, *, token):
     # FIXME: This is a hack that doesn't account for the chain.
     # The grant on the entry is for the root namespace; the user's grant on the root namespace is included in the chain
     for grant in result["grants"]:
-        if grant["public_key"] != namespace_pk:
+        if grant["grantee_pk"] != namespace_pk:
             continue
 
         active_secret_kek = grant["value"]
@@ -153,7 +164,7 @@ if __name__ == "__main__":
 
     user_sk = decrypt_with_password(USER_NAME, USER_PASSWORD, authenticate_res["hidden_key"].encode())
     user_sk = PrivateKey(user_sk)
-    token = decrypt_grant(user_sk, authenticate_res["hidden_token"].encode()).decode()
+    token = decrypt_hidden_token(user_sk, authenticate_res["hidden_token"].encode()).decode()
     print("token", token)
 
     workspace_read = get_workspace(token=token)
@@ -163,6 +174,8 @@ if __name__ == "__main__":
     print("created", store_create_entry_res)
     store_list_entries_res = store__list_entries("fu", token=token)
     print("listed", store_list_entries_res)
+    store_fetch_namespace_chain = store__fetch_namespace_chain("fuck", token=token)
+    print("chained", store_fetch_namespace_chain)
     store_fetch_entry_res = store__fetch_entry("fuck", token=token)
     print("fetched", store_fetch_entry_res)
     store_delete_entry_res = store__delete_entry("fuck", token=token)
