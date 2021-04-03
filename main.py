@@ -13,7 +13,7 @@ from kryptos.crypto import (
 WORKSPACE_NAME = "kryptos"
 WORKSPACE_DISPLAY_NAME = "CIA Brothel"
 
-USER_NAME = "admin@kryptos.io"
+USER_NAME = "admin"
 USER_PASSWORD = "project_kryptos"
 
 USER_SK = PrivateKey(b"CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
@@ -31,8 +31,8 @@ def create_workspace():
     workspace_params = {"name": WORKSPACE_NAME, "display_name": WORKSPACE_DISPLAY_NAME}
 
     user_params = {
-        "name": "admin",
-        "email_address": "test@example.com",
+        "name": USER_NAME,
+        "email_address": "admin@kryptos.io",
         "public_key": USER_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
         "hidden_key": hidden_key.decode(),
         "permissions": ["root"],
@@ -44,6 +44,7 @@ def create_workspace():
             {
                 "public_key": USER_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "value": namespace_grant.decode(),
+                "access": ["read", "write", "delete"]
             }
         ],
     }
@@ -56,10 +57,26 @@ def create_workspace():
     return result.json()
 
 
-def authenticate():
+def get_workspace(*, token):
+    return httpx.get(
+        "http://127.0.0.1:8000/v0/workspace",
+        headers={"Authorization": f"Bearer {token}"}
+    ).json()
+
+
+def delete_workspace(*, token):
+    response = httpx.delete(
+        "http://127.0.0.1:8000/v0/workspace",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    print(response.status_code, response.read())
+
+
+def authenticate(username):
     result = httpx.post(
         f"http://127.0.0.1:8000/v0/workspace/auth/{WORKSPACE_NAME}",
-        json={"username": USER_NAME, "permissions": ["root"]},
+        json={"username": username, "permissions": ["root"]},
     )
     return result.json()
 
@@ -75,6 +92,7 @@ def store__create_entry(key, value, *, token):
                 {
                     "public_key": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                     "value": value.decode(),
+                    "access": ["read", "write", "delete"]
                 }
                 for public_key, value in grants
             ],
@@ -92,19 +110,19 @@ def store__fetch_entry(key, *, token):
     )
 
     result = result.json()
-    decoded_pk = USER_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode()
-
-    active_sk = USER_SK
+    namespace_pk = NAMESPACE_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode()
     active_secret_kek = None
 
+    # FIXME: This is a hack that doesn't account for the chain.
+    # The grant on the entry is for the root namespace; the user's grant on the root namespace is included in the chain
     for grant in result["grants"]:
-        if grant["public_key"] != decoded_pk:
+        if grant["public_key"] != namespace_pk:
             continue
 
         active_secret_kek = grant["value"]
         break
 
-    result["value"] = decrypt_entry(result["value"], active_secret_kek, active_sk)
+    result = decrypt_entry(result["value"], active_secret_kek, NAMESPACE_SK)
     return result
 
 
@@ -127,20 +145,19 @@ def store__delete_entry(key, *, token):
 
 
 if __name__ == "__main__":
-    # temp_sk, temp_pk = generate_keypair()
-    # print(temp_sk.encode(encoder=encoding.URLSafeBase64Encoder), temp_pk.encode(encoding.URLSafeBase64Encoder))
+    workspace_create = create_workspace()
+    print("workspace", workspace_create)
 
-    workspace_res = create_workspace()
-    print("workspace", workspace_res)
-
-    authenticate_res = authenticate()
+    authenticate_res = authenticate(USER_NAME)
     print("auth", authenticate_res)
 
     user_sk = decrypt_with_password(USER_NAME, USER_PASSWORD, authenticate_res["hidden_key"].encode())
     user_sk = PrivateKey(user_sk)
-
     token = decrypt_grant(user_sk, authenticate_res["hidden_token"].encode()).decode()
     print("token", token)
+
+    workspace_read = get_workspace(token=token)
+    print("workspace", workspace_read)
 
     store_create_entry_res = store__create_entry("fuck", "david", token=token)
     print("created", store_create_entry_res)
@@ -150,3 +167,6 @@ if __name__ == "__main__":
     print("fetched", store_fetch_entry_res)
     store_delete_entry_res = store__delete_entry("fuck", token=token)
     print("deleted", store_delete_entry_res)
+
+    # Delete all objects at the end of the scenario
+    delete_workspace(token=token)
