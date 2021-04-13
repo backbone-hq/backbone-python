@@ -9,7 +9,7 @@ from kryptos.crypto import (
     encrypt_grant,
     encrypt_sealed_grant,
     decrypt_sealed_grant,
-    decrypt_hidden_token
+    decrypt_hidden_token,
 )
 
 WORKSPACE_NAME = "kryptos"
@@ -28,7 +28,6 @@ NAMESPACE_PK = PublicKey(b"X3U0wKsCk82-DECB63k1StpRYDOcGromY1LeveIKqH0=", encode
 def create_workspace():
     hidden_key = USER_SK.encode(encoding.RawEncoder)
     hidden_key = encrypt_with_password(USER_NAME, USER_PASSWORD, hidden_key)
-    print(hidden_key)
     namespace_grant = encrypt_grant(USER_PK, NAMESPACE_SK)
 
     workspace_params = {"name": WORKSPACE_NAME, "display_name": WORKSPACE_DISPLAY_NAME}
@@ -47,7 +46,7 @@ def create_workspace():
             {
                 "grantee_pk": USER_PK.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "value": namespace_grant.decode(),
-                "access": ["read", "write", "delete"]
+                "access": ["read", "write", "delete"],
             }
         ],
     }
@@ -61,25 +60,17 @@ def create_workspace():
 
 
 def get_workspace(*, token):
-    return httpx.get(
-        "http://127.0.0.1:8000/v0/workspace",
-        headers={"Authorization": f"Bearer {token}"}
-    ).json()
+    return httpx.get("http://127.0.0.1:8000/v0/workspace", headers={"Authorization": f"Bearer {token}"}).json()
 
 
 def delete_workspace(*, token):
-    response = httpx.delete(
-        "http://127.0.0.1:8000/v0/workspace",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-
-    print(response.status_code, response.read())
+    return httpx.delete("http://127.0.0.1:8000/v0/workspace", headers={"Authorization": f"Bearer {token}"}).json()
 
 
-def authenticate(username):
+def authenticate(workspace, username):
     result = httpx.post(
-        f"http://127.0.0.1:8000/v0/workspace/auth/{WORKSPACE_NAME}",
-        json={"username": username, "permissions": ["root"]},
+        f"http://127.0.0.1:8000/v0/token/",
+        json={"workspace": workspace, "username": username, "permissions": ["root"]},
     )
     return result.json()
 
@@ -95,7 +86,7 @@ def store__create_entry(key, value, *, token):
                 {
                     "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                     "value": value.decode(),
-                    "access": ["read", "write", "delete"]
+                    "access": ["read", "write", "delete"],
                 }
                 for public_key, value in grants
             ],
@@ -105,6 +96,7 @@ def store__create_entry(key, value, *, token):
 
     return result.json()
 
+
 def store__fetch_namespace_chain(key, *, token):
     result = httpx.get(
         f"http://127.0.0.1:8000/v0/chain/{key}",
@@ -113,6 +105,7 @@ def store__fetch_namespace_chain(key, *, token):
 
     result = result.json()
     return result
+
 
 def store__fetch_entry(key, *, token):
     result = httpx.get(
@@ -159,7 +152,7 @@ if __name__ == "__main__":
     workspace_create = create_workspace()
     print("workspace", workspace_create)
 
-    authenticate_res = authenticate(USER_NAME)
+    authenticate_res = authenticate(WORKSPACE_NAME, USER_NAME)
     print("auth", authenticate_res)
 
     user_sk = decrypt_with_password(USER_NAME, USER_PASSWORD, authenticate_res["hidden_key"].encode())

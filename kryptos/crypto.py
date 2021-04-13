@@ -6,8 +6,8 @@ from nacl.hash import blake2b
 from nacl.secret import SecretBox
 
 
-def derive_password_key(identity: str, password: str):
-    salt = blake2b(identity.encode(), 16, encoder=encoding.RawEncoder)
+def derive_password_key(identity: str, password: str) -> bytes:
+    salt = blake2b(identity.encode(), digest_size=16, encoder=encoding.RawEncoder)
     return argon2id.kdf(size=32, password=password.encode(), salt=salt)
 
 
