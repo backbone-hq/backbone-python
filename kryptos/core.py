@@ -38,6 +38,7 @@ class KryptosClient:
         self.namespace: _NamespaceClient = _NamespaceClient(self)
         self.entry: _EntryClient = _EntryClient(self)
         self.token: _TokenClient = _TokenClient(self)
+        self.workspace: _WorkspaceClient = _WorkspaceClient(self)
 
         self.authenticator: Optional[KryptosAuth] = None
 
@@ -79,31 +80,152 @@ class _TokenClient:
         return self._parse(response)
 
     def _parse(self, response: httpx.Response) -> Optional[str]:
-        if response.is_redirect or response.is_error:
-            return None
+        if response.is_error:
+            raise Exception(response.json())
 
         result = response.json()
         hidden_token = result["hidden_token"]
         return crypto.decrypt_hidden_token(self.client._secret_key, hidden_token.encode()).decode()
 
 
+class _WorkspaceClient:
+    def __init__(self, client: KryptosClient):
+        self.client = client
+
+    def get(self):
+        endpoint = self.client.endpoint("workspace")
+        response = httpx.get(endpoint, auth=self.client.authenticator).json()
+
+        if response.is_error:
+            raise Exception(response.json())
+
+        return response.json()
+
+    def create(self, display_name: str, email_address: str):
+        endpoint = self.client.endpoint("workspace")
+
+        # Generate root namespace keypair
+        namespace_key: PrivateKey = PrivateKey.generate()
+        namespace_grant = crypto.encrypt_grant(self.client._secret_key.public_key, namespace_key)
+
+        response = httpx.post(
+            endpoint,
+            json={
+                "workspace": {"name": self.client._workspace, "display_name": display_name},
+                "user": {
+                    "name": self.client._username,
+                    "email_address": email_address,
+                    "public_key": self.client._secret_key.public_key.encode(
+                        encoder=encoding.URLSafeBase64Encoder
+                    ).decode(),
+                    "hidden_key": crypto.encrypt_with_secret(
+                        secret=self.client._secret_key.encode(), plaintext=self.client._secret_key.encode()
+                    ).decode(),
+                    "permissions": [],
+                },
+                "namespace": {
+                    "public_key": namespace_key.public_key.encode(encoding.URLSafeBase64Encoder).decode(),
+                    "grants": [
+                        {
+                            "grantee_pk": self.client._secret_key.public_key.encode(
+                                encoder=encoding.URLSafeBase64Encoder
+                            ).decode(),
+                            "access": list(map(lambda access: access.value, GrantAccess.__members__.values())),
+                            "value": namespace_grant.decode(),
+                        }
+                    ],
+                },
+            },
+            auth=self.client.authenticator,
+        )
+
+        if response.is_error:
+            raise Exception(response.json())
+
+        return response.json()
+
+    def delete(self, safety_check=True):
+        if safety_check:
+            print(f"WARNING: You're about to delete the namespace {self.client._workspace}")
+            assert input("Please confirm by typing your workspace's name: ") == self.client._workspace
+
+        endpoint = self.client.endpoint("workspace")
+        response = httpx.delete(endpoint, auth=self.client.authenticator)
+
+        if response.is_error:
+            raise Exception(response.json())
+
+        return response.json()
+
+
 class _NamespaceClient:
     def __init__(self, client: KryptosClient):
         self.client = client
 
-    # def get(self, key: str):
-    #     endpoint = self.client.endpoint("entry", key)
-    #     response = httpx.get(endpoint, auth=self.client.authenticator)
+    def get(self, key: str):
+        endpoint = self.client.endpoint("namespace", key)
+        response = httpx.get(endpoint, auth=self.client.authenticator).json()
+
+        if response.is_error:
+            raise Exception(response)
+
+        return response.json()
 
     def get_chain(self, key: str) -> List[dict]:
         endpoint = self.client.endpoint("chain", key)
-        return httpx.get(endpoint, auth=self.client.authenticator).json().get("chain")
+        response = httpx.get(endpoint, auth=self.client.authenticator)
 
-    # def delete(self, key):
-    #     pass
-    #
-    # def share(self, public_key):
-    #     pass
+        if response.is_error:
+            raise Exception(response)
+
+        return response.json().get("chain")
+
+    def create(self, key: str, access: List[GrantAccess] = ()):
+        # Find the closest namespace
+        chain = self.get_chain(key)
+        parent_namespace_grant = chain[-1]
+        parent_namespace_pk = PublicKey(base64.urlsafe_b64decode(parent_namespace_grant["subject_pk"]))
+
+        # Generate new namespace keypair
+        namespace_key: PrivateKey = PrivateKey.generate()
+        namespace_grant = crypto.encrypt_grant(parent_namespace_pk, namespace_key)
+
+        endpoint = self.client.endpoint("namespace", key)
+        response = httpx.post(
+            endpoint,
+            json={
+                "public_key": namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                "grants": [
+                    {
+                        "grantee_pk": parent_namespace_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                        "value": namespace_grant.decode(),
+                        "access": parent_namespace_grant["access"],
+                    }
+                ],
+            },
+            auth=self.client.authenticator,
+            timeout=None,
+        )
+
+        if response.is_error:
+            raise Exception(response)
+
+        return response.json()
+
+    def delete(self, key):
+        endpoint = self.client.endpoint("namespace", key)
+        response = httpx.delete(endpoint, auth=self.client.authenticator, timeout=None)
+
+        if response.is_error:
+            raise Exception(response.json())
+
+        return response.json()
+
+    def grant(self, key: str, user: PublicKey, access: List[GrantAccess]):
+        pass
+
+    def revoke(self, key: str, user: PublicKey):
+        pass
 
 
 class _EntryClient:
@@ -121,8 +243,8 @@ class _EntryClient:
         # Follow and decrypt the namespace grant chain
         current_sk: PrivateKey = self.client._secret_key
         for grant in result["chain"]:
-            grantee_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
-            current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(grantee_pk, current_sk, grant["value"]))
+            subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
+            current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
 
         # Find an applicable entry grant
         applicable_grant_pk = base64.urlsafe_b64encode(current_sk.public_key.encode()).decode()
@@ -135,7 +257,7 @@ class _EntryClient:
 
     def set(self, key: str, value: str, access: List[GrantAccess] = None):
         chain = self.client.namespace.get_chain(key)
-        closest_namespace_grant = chain[0]
+        closest_namespace_grant = chain[-1]
         namespace_public_key = PublicKey(base64.urlsafe_b64decode(closest_namespace_grant["subject_pk"]))
         ciphertext, grants = crypto.encrypt_entry(value, namespace_public_key)
 
@@ -146,17 +268,18 @@ class _EntryClient:
                 "value": ciphertext.decode(),
                 "grants": [
                     {
-                        "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                        "grantee_pk": public_key.decode(),
                         "value": value.decode(),
-                        "access": ["read", "write", "delete"],
-                        # FIXME: Replace with `access` and instill sensible defaults
-                        # TODO: Consider inheriting from namespace's access grants if `access` = None
+                        "access": closest_namespace_grant["access"],
                     }
                     for public_key, value in grants
                 ],
             },
             auth=self.client.authenticator,
+            timeout=None,
         )
 
         if response.is_error:
             raise Exception(response.json())
+
+        return response.json()

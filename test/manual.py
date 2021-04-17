@@ -7,8 +7,6 @@ from kryptos.crypto import (
     encrypt_entry,
     decrypt_entry,
     encrypt_grant,
-    encrypt_sealed_grant,
-    decrypt_sealed_grant,
     decrypt_hidden_token,
 )
 

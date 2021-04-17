@@ -9,8 +9,6 @@ from kryptos.crypto import (
     decrypt_entry,
     encrypt_grant,
     decrypt_grant,
-    encrypt_sealed_grant,
-    decrypt_sealed_grant,
     decrypt_hidden_token,
 )
 
@@ -18,7 +16,8 @@ from kryptos.crypto import (
 @Halo(text="Authenticating", spinner="dots")
 def authenticate(workspace, username, password):
     result = httpx.post(
-        f"http://127.0.0.1:8000/v0/workspace/auth/{workspace}", json={"username": username, "permissions": ["root"]},
+        f"http://127.0.0.1:8000/v0/token/",
+        json={"workspace": workspace, "username": username, "permissions": ["root"]},
     )
 
     payload = result.json()
@@ -81,7 +80,10 @@ def delete_workspace(*, token):
 
 
 def fetch_chain(key, *, token):
-    result = httpx.get(f"http://127.0.0.1:8000/v0/chain/{key}", headers={"Authorization": f"Bearer {token}"},)
+    result = httpx.get(
+        f"http://127.0.0.1:8000/v0/chain/{key}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
 
     result = result.json()
     return result
@@ -99,7 +101,7 @@ def create_entry(key, value, *, token):
             "value": ciphertext.decode(),
             "grants": [
                 {
-                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "grantee_pk": public_key.decode(),
                     "value": value.decode(),
                     "access": ["read", "write", "delete"],
                 }
@@ -114,7 +116,10 @@ def create_entry(key, value, *, token):
 
 @Halo(text="Fetching entry", spinner="dots")
 def fetch_entry(key, *, token, sk):
-    result = httpx.get(f"http://127.0.0.1:8000/v0/entry/{key}", headers={"Authorization": f"Bearer {token}"},)
+    result = httpx.get(
+        f"http://127.0.0.1:8000/v0/entry/{key}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     result = result.json()
 
     current_sk = sk
@@ -130,12 +135,18 @@ def fetch_entry(key, *, token, sk):
 
 
 def list_entries(key, *, token):
-    result = httpx.get(f"http://127.0.0.1:8000/v0/entries/{key}", headers={"Authorization": f"Bearer {token}"},)
+    result = httpx.get(
+        f"http://127.0.0.1:8000/v0/entries/{key}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
 
     return result.json()
 
 
 def delete_entry(key, *, token):
-    result = httpx.delete(f"http://127.0.0.1:8000/v0/entry/{key}", headers={"Authorization": f"Bearer {token}"},)
+    result = httpx.delete(
+        f"http://127.0.0.1:8000/v0/entry/{key}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
 
     return result.json()
