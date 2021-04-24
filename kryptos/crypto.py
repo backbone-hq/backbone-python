@@ -3,7 +3,7 @@ from nacl.utils import encoding, random
 from nacl.pwhash import argon2id
 from nacl.hash import blake2b
 from nacl.secret import SecretBox
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 def derive_password_key(identity: str, password: str) -> bytes:
@@ -46,19 +46,22 @@ def decrypt_hidden_token(secret_key: PrivateKey, ciphertext: bytes) -> bytes:
 def encrypt_entry(plaintext: str, *public_keys: PublicKey) -> (bytes, List[Tuple[bytes, bytes]]):
     entry_key = random(SecretBox.KEY_SIZE)
     ciphertext = SecretBox(entry_key).encrypt(plaintext.encode(), encoder=encoding.URLSafeBase64Encoder)
-    grants = []
-
-    for public_key in public_keys:
-        grants.append(
-            (
-                public_key.encode(encoder=encoding.URLSafeBase64Encoder),
-                SealedBox(public_key).encrypt(entry_key, encoder=encoding.URLSafeBase64Encoder),
-            )
-        )
+    grants = [
+        (public_key.encode(encoder=encoding.URLSafeBase64Encoder), create_entry_grant(entry_key, public_key))
+        for public_key in public_keys
+    ]
 
     return ciphertext, grants
 
 
+def create_entry_grant(entry_key: bytes, public_key: PublicKey) -> bytes:
+    return SealedBox(public_key).encrypt(entry_key, encoder=encoding.URLSafeBase64Encoder)
+
+
 def decrypt_entry(ciphertext: str, secret_kek: bytes, secret_key: PrivateKey) -> bytes:
-    entry_key = SealedBox(secret_key).decrypt(secret_kek, encoder=encoding.URLSafeBase64Encoder)
+    entry_key = decrypt_entry_encryption_key(secret_kek, secret_key)
     return SecretBox(entry_key).decrypt(ciphertext.encode(), encoder=encoding.URLSafeBase64Encoder)
+
+
+def decrypt_entry_encryption_key(secret_kek: bytes, secret_key: PrivateKey) -> bytes:
+    return SealedBox(secret_key).decrypt(secret_kek, encoder=encoding.URLSafeBase64Encoder)

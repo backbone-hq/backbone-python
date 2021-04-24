@@ -1,6 +1,6 @@
 from kryptos.core import KryptosClient, Permission
 from manual import WORKSPACE_NAME, USER_NAME, USER_SK
-from nacl import encoding
+from nacl import public
 
 
 if __name__ == "__main__":
@@ -17,7 +17,10 @@ if __name__ == "__main__":
     client.namespace.create("project")
 
     # Entry creation
-    client.entry.set("key", "value")
+    client.entry.set("key-set-1", "value")
+    client.entry.set("key-set-2", "value")
+
+    # print(client.entry.search("key-set"))
 
     # Entry read
     value = client.entry.get("key")

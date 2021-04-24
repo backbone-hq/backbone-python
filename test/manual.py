@@ -82,7 +82,7 @@ def store__create_entry(key, value, *, token):
             "value": ciphertext.decode(),
             "grants": [
                 {
-                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "grantee_pk": public_key.decode(),
                     "value": value.decode(),
                     "access": ["read", "write", "delete"],
                 }
