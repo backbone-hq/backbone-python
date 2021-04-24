@@ -284,23 +284,36 @@ class _NamespaceClient:
         return response.json()
 
     # TODO @david: implement namespace granting/revocation
-    # def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey):
-    #     endpoint = self.client.endpoint("grant", "namespace", key)
+    def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey):
+        endpoint = self.client.endpoint("grant", "namespace", key)
+        # _, users_grant = self.__get(key)
+        # entry_key = crypto.decrypt_entry_encryption_key(users_grant, self.client._secret_key)
+        #
+        # grants = [
+        #     (
+        #         public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+        #         crypto.create_entry_grant(entry_key, public_key),
+        #     )
+        #     for public_key in users
+        # ]
+        #
+        # endpoint = self.client.endpoint("grant", "entry", key)
+        # response = httpx.post(
+        #     endpoint,
+        #     json=[grants],
+        #     auth=self.client.authenticator,
+        # )
+        # response.raise_for_status()
 
-    # def revoke(self, key: str, *users: PublicKey):
-    #     endpoint = self.client.endpoint("grant", "namespace", key)
+    def revoke(self, key: str, *users: PublicKey):
+        endpoint = self.client.endpoint("grant", "namespace", key)
 
 
 class _EntryClient:
     def __init__(self, client: KryptosClient):
         self.client = client
 
-    def __get(self, key: str) -> Tuple[str, str]:
-        """
-        Unrolls the grant chain and returns the ciphertext and user's entry grant
-        :param key: The entry's key
-        :return: (value_ciphertext, grant_ciphertext)
-        """
+    def __unroll_chain(self, key: str) -> Tuple[str, str, PrivateKey]:
         endpoint = self.client.endpoint("entry", key)
         response = httpx.get(endpoint, auth=self.client.authenticator)
         response.raise_for_status()
@@ -313,15 +326,15 @@ class _EntryClient:
             current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
 
         # Find the user's entry grant
-        user_pk = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
-        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == user_pk]
+        current_pk = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
         if not grants:
             # This shouldn't happen; the user must have at least 1 `READ` grant on the entry for the endpoint to return
             raise ValueError
 
         # Pick the first
-        user_grant = grants[0]
-        return result["value"], user_grant["value"]
+        current_grant = grants[0]
+        return result["value"], current_grant["value"], current_sk
 
     def get(self, key: str) -> str:
         """
@@ -329,8 +342,8 @@ class _EntryClient:
         :param key: the key to obtain
         :return: the value if the user has sufficient access
         """
-        ciphertext, user_grant = self.__get(key)
-        return crypto.decrypt_entry(ciphertext, user_grant.encode(), self.client._secret_key).decode()
+        ciphertext, grant, grant_sk = self.__unroll_chain(key)
+        return crypto.decrypt_entry(ciphertext, grant.encode(), grant_sk).decode()
 
     def search(self, key: str):
         endpoint = self.client.endpoint("entries", key)
@@ -363,9 +376,9 @@ class _EntryClient:
         return response.json()
 
     def grant(self, key: str, access: List[GrantAccess], *users: PublicKey):
-        # Get the user's
-        _, users_grant = self.__get(key)
-        entry_key = crypto.decrypt_entry_encryption_key(users_grant, self.client._secret_key)
+        # Get the user's grant
+        _, grant, grant_sk = self.__unroll_chain(key)
+        entry_key = crypto.decrypt_entry_encryption_key(grant.encode(), grant_sk)
 
         grants = [
             (

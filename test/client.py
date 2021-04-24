@@ -1,30 +1,35 @@
 from kryptos.core import KryptosClient, Permission
-from manual import WORKSPACE_NAME, USER_NAME, USER_SK
-from nacl import public
+from nacl.public import PrivateKey
+from nacl import encoding
+
+WORKSPACE_NAME = "kryptos"
+WORKSPACE_DISPLAY_NAME = "CIA Brothel"
+
+ADMIN = "admin"
+ADMIN_EMAIL = "root@kryptos.io"
+ADMIN_SK = PrivateKey(b"CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
 
 if __name__ == "__main__":
     # Client creation
-    client = KryptosClient(workspace=WORKSPACE_NAME, username=USER_NAME, secret_key=USER_SK)
+    client = KryptosClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
 
-    # Create workspace
-    client.workspace.create(display_name="CIA Brothel", email_address="admin@kryptos.io")
+    try:
+        # Create workspace
+        client.workspace.create(display_name=WORKSPACE_DISPLAY_NAME, email_address=ADMIN_EMAIL)
 
-    # Authentication
-    client.authenticate(permissions=[Permission.ROOT])
+        # Authenticate
+        client.authenticate(permissions=[Permission.ROOT])
 
-    # Namespace creation
-    client.namespace.create("project")
+        # Create entries
+        client.entry.set("key-001", "value-001")
 
-    # Entry creation
-    client.entry.set("key-set-1", "value")
-    client.entry.set("key-set-2", "value")
+        # Read entry
+        value = client.entry.get("key-001")
+        print(f"Entry value: {value}")
+    finally:
+        # Authenticate
+        client.authenticate(permissions=[Permission.ROOT])
 
-    # print(client.entry.search("key-set"))
-
-    # Entry read
-    value = client.entry.get("key")
-    print(f"Entry value: {value}")
-
-    # Delete workspace
-    client.workspace.delete(safety_check=False)
+        # Delete workspace
+        client.workspace.delete(safety_check=False)
