@@ -12,6 +12,7 @@ class Permission(Enum):
 class GrantAccess(Enum):
     READ = "read"
     WRITE = "write"
+    DELEGATE = "delegate"
     DELETE = "delete"
 
 

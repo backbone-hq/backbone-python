@@ -44,6 +44,7 @@ class KryptosClient:
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
         self._secret_key: PrivateKey = secret_key
+        self._public_key: PublicKey = secret_key.public_key
         self._username: str = username
         self._workspace: str = workspace
 
@@ -248,15 +249,21 @@ class _NamespaceClient:
         endpoint = self.client.endpoint("namespaces", key)
         yield from paginate(endpoint, client=self.client)
 
-    def create(self, key: str, access: List[GrantAccess] = ()):
-        # Find the closest namespace
-        chain = self.get_chain(key)
-        parent_namespace_grant = chain[-1]
-        parent_namespace_pk = PublicKey(base64.urlsafe_b64decode(parent_namespace_grant["subject_pk"]))
+    def create(self, key: str, *, access: List[GrantAccess] = (), is_segregated: bool = False):
+        if is_segregated:
+            grant_pk = self.client._public_key
+            grant_access = [item.value for item in access or GrantAccess]
+        else:
+            # Find the closest namespace
+            chain = self.get_chain(key)
+            parent_grant = chain[-1]
+
+            grant_pk = PublicKey(base64.urlsafe_b64decode(parent_grant["subject_pk"]))
+            grant_access = access or parent_grant["access"]
 
         # Generate new namespace keypair
         namespace_key: PrivateKey = PrivateKey.generate()
-        namespace_grant = crypto.encrypt_grant(parent_namespace_pk, namespace_key)
+        namespace_grant = crypto.encrypt_grant(grant_pk, namespace_key)
 
         endpoint = self.client.endpoint("namespace", key)
         response = httpx.post(
@@ -265,9 +272,9 @@ class _NamespaceClient:
                 "public_key": namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "grants": [
                     {
-                        "grantee_pk": parent_namespace_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                        "grantee_pk": grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                         "value": namespace_grant.decode(),
-                        "access": parent_namespace_grant["access"],
+                        "access": grant_access,
                     }
                 ],
             },
@@ -389,11 +396,7 @@ class _EntryClient:
         ]
 
         endpoint = self.client.endpoint("grant", "entry", key)
-        response = httpx.post(
-            endpoint,
-            json=[grants],
-            auth=self.client.authenticator,
-        )
+        response = httpx.post(endpoint, json=[grants], auth=self.client.authenticator,)
         response.raise_for_status()
 
     def revoke(self, key: str, *users: PublicKey):
