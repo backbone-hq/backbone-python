@@ -106,13 +106,13 @@ class _WorkspaceClient:
     def __init__(self, client: KryptosClient):
         self.client = client
 
-    def get(self):
+    def get(self) -> dict:
         endpoint = self.client.endpoint("workspace")
         response = httpx.get(endpoint, auth=self.client.authenticator).json()
         response.raise_for_status()
         return response.json()
 
-    def create(self, display_name: str, email_address: str):
+    def create(self, display_name: str, email_address: str) -> dict:
         endpoint = self.client.endpoint("workspace")
 
         # Generate root namespace keypair
@@ -153,7 +153,7 @@ class _WorkspaceClient:
         response.raise_for_status()
         return response.json()
 
-    def delete(self, safety_check=True):
+    def delete(self, safety_check=True) -> None:
         if safety_check:
             print(f"WARNING: You're about to delete the workspace {self.client._workspace}")
             assert input("Please confirm by typing your workspace's name: ") == self.client._workspace
@@ -161,7 +161,6 @@ class _WorkspaceClient:
         endpoint = self.client.endpoint("workspace")
         response = httpx.delete(endpoint, auth=self.client.authenticator)
         response.raise_for_status()
-        return response.json()
 
 
 class _UserClient:
@@ -172,13 +171,13 @@ class _UserClient:
         endpoint = self.client.endpoint("users")
         yield from paginate(endpoint, client=self.client)
 
-    def find(self, username: str):
+    def find(self, username: str) -> dict:
         endpoint = self.client.endpoint("user", username)
         response = httpx.get(endpoint, auth=self.client.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def get(self):
+    def get(self) -> dict:
         endpoint = self.client.endpoint("user")
         response = httpx.get(endpoint, auth=self.client.authenticator)
         response.raise_for_status()
@@ -190,7 +189,7 @@ class _UserClient:
         secret_key: Optional[PrivateKey] = None,
         email_address: Optional[str] = None,
         permissions: List[Permission] = (),
-    ):
+    ) -> dict:
         username = username or self.client._username
         secret_key = secret_key or self.client._secret_key
 
@@ -213,7 +212,7 @@ class _UserClient:
 
     def create_from_credentials(
         self, username: str, password: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
-    ):
+    ) -> dict:
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
         return self.create(
             username=username,
@@ -222,18 +221,17 @@ class _UserClient:
             permissions=permissions,
         )
 
-    def delete(self):
+    def delete(self) -> None:
         endpoint = self.client.endpoint("user")
         response = httpx.delete(endpoint, auth=self.client.authenticator)
         response.raise_for_status()
-        return response.json()
 
 
 class _NamespaceClient:
     def __init__(self, client: KryptosClient):
         self.client = client
 
-    def get(self, key: str):  # TODO: Decide whether this method should exist; no clear use-case
+    def get(self, key: str) -> dict:  # TODO: Decide whether this method should exist; no clear use-case
         endpoint = self.client.endpoint("namespace", key)
         response = httpx.get(endpoint, auth=self.client.authenticator).json()
         response.raise_for_status()
@@ -249,7 +247,7 @@ class _NamespaceClient:
         endpoint = self.client.endpoint("namespaces", key)
         yield from paginate(endpoint, client=self.client)
 
-    def create(self, key: str, *, access: List[GrantAccess] = (), is_segregated: bool = False):
+    def create(self, key: str, *, access: List[GrantAccess] = (), is_segregated: bool = False) -> dict:
         if is_segregated:
             grant_pk = self.client._public_key
             grant_access = [item.value for item in access or GrantAccess]
@@ -284,36 +282,35 @@ class _NamespaceClient:
         response.raise_for_status()
         return response.json()
 
-    def delete(self, key):
+    def delete(self, key: str) -> None:
         endpoint = self.client.endpoint("namespace", key)
         response = httpx.delete(endpoint, auth=self.client.authenticator)
         response.raise_for_status()
-        return response.json()
 
     # TODO @david: implement namespace granting/revocation
-    def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey):
-        endpoint = self.client.endpoint("grant", "namespace", key)
-        # _, users_grant = self.__get(key)
-        # entry_key = crypto.decrypt_entry_encryption_key(users_grant, self.client._secret_key)
-        #
-        # grants = [
-        #     (
-        #         public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-        #         crypto.create_entry_grant(entry_key, public_key),
-        #     )
-        #     for public_key in users
-        # ]
-        #
-        # endpoint = self.client.endpoint("grant", "entry", key)
-        # response = httpx.post(
-        #     endpoint,
-        #     json=[grants],
-        #     auth=self.client.authenticator,
-        # )
-        # response.raise_for_status()
+    # def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey):
+    #     endpoint = self.client.endpoint("grant", "namespace", key)
+    # _, users_grant = self.__get(key)
+    # entry_key = crypto.decrypt_entry_encryption_key(users_grant, self.client._secret_key)
+    #
+    # grants = [
+    #     (
+    #         public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+    #         crypto.create_entry_grant(entry_key, public_key),
+    #     )
+    #     for public_key in users
+    # ]
+    #
+    # endpoint = self.client.endpoint("grant", "entry", key)
+    # response = httpx.post(
+    #     endpoint,
+    #     json=[grants],
+    #     auth=self.client.authenticator,
+    # )
+    # response.raise_for_status()
 
-    def revoke(self, key: str, *users: PublicKey):
-        endpoint = self.client.endpoint("grant", "namespace", key)
+    # def revoke(self, key: str, *users: PublicKey):
+    #     endpoint = self.client.endpoint("grant", "namespace", key)
 
 
 class _EntryClient:
@@ -356,7 +353,7 @@ class _EntryClient:
         endpoint = self.client.endpoint("entries", key)
         yield from paginate(endpoint, client=self.client)
 
-    def set(self, key: str, value: str, access: List[GrantAccess] = ()):
+    def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
         chain = self.client.namespace.get_chain(key)
         closest_namespace_grant = chain[-1]
         namespace_public_key = PublicKey(base64.urlsafe_b64decode(closest_namespace_grant["subject_pk"]))
@@ -382,7 +379,7 @@ class _EntryClient:
         response.raise_for_status()
         return response.json()
 
-    def grant(self, key: str, access: List[GrantAccess], *users: PublicKey):
+    def grant(self, key: str, access: List[GrantAccess], *users: PublicKey) -> dict:
         # Get the user's grant
         _, grant, grant_sk = self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant.encode(), grant_sk)
@@ -396,10 +393,15 @@ class _EntryClient:
         ]
 
         endpoint = self.client.endpoint("grant", "entry", key)
-        response = httpx.post(endpoint, json=[grants], auth=self.client.authenticator,)
+        response = httpx.post(
+            endpoint,
+            json=[grants],
+            auth=self.client.authenticator,
+        )
         response.raise_for_status()
+        return response.json()
 
-    def revoke(self, key: str, *users: PublicKey):
+    def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.client.endpoint("grant", "entry", key)
         response = httpx.delete(
             endpoint,

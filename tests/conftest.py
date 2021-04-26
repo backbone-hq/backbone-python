@@ -11,7 +11,7 @@ ADMIN_EMAIL = "root@kryptos.io"
 ADMIN_SK = PrivateKey(b"CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def client():
     client = KryptosClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
 
