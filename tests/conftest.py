@@ -1,6 +1,7 @@
 import pytest
-from nacl.public import PrivateKey
 from nacl import encoding
+from nacl.public import PrivateKey
+
 from kryptos.core import KryptosClient, Permission
 
 WORKSPACE_NAME = "kryptos"

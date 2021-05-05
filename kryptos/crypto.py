@@ -1,9 +1,10 @@
-from nacl.public import PrivateKey, PublicKey, Box, SealedBox
-from nacl.utils import encoding, random
-from nacl.pwhash import argon2id
+from typing import List, Tuple
+
 from nacl.hash import blake2b
+from nacl.public import Box, PrivateKey, PublicKey, SealedBox
+from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
-from typing import List, Tuple, Optional
+from nacl.utils import encoding, random
 
 
 def derive_password_key(identity: str, password: str) -> bytes:

@@ -22,12 +22,14 @@ Options:
     -t, --token=<token>          Use TOKEN for authentication
 """
 
-import kryptos
-from pathlib import Path
 import json
-import sys
 import os
+import sys
+from pathlib import Path
+
 import httpx
+
+import kryptos
 
 KRYPTOS_ROOT = Path(__file__).parent
 KRYPTOS_CONFIG = KRYPTOS_ROOT / "config.json"
@@ -42,6 +44,7 @@ def panic(*args, **kwargs):
 
 def execute(arguments):
     pass
+
 
 """
 if KRYPTOS_CONFIG.exists():

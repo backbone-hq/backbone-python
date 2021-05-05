@@ -1,4 +1,5 @@
 from docopt import docopt
+
 from kryptos import cli
 from kryptos.core import __version__
 

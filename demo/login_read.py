@@ -1,5 +1,6 @@
-from demo.utils import *
 import json
+
+from demo.utils import *
 
 if __name__ == "__main__":
     token, user_sk = authenticate(

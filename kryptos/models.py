@@ -1,5 +1,4 @@
 from enum import Enum
-from dataclasses import dataclass
 
 
 class Permission(Enum):
@@ -14,8 +13,3 @@ class GrantAccess(Enum):
     WRITE = "write"
     DELEGATE = "delegate"
     DELETE = "delete"
-
-
-@dataclass
-class User:
-    username: str

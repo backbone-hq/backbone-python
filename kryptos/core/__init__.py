@@ -1,11 +1,12 @@
 import base64
+from typing import Generator, List, Optional, Tuple
 
-from nacl.public import PrivateKey, PublicKey
-from typing import Optional, List, Generator, Tuple
 import httpx
-from kryptos import crypto
-from kryptos.models import Permission, GrantAccess
 from nacl import encoding
+from nacl.public import PrivateKey, PublicKey
+
+from kryptos import crypto
+from kryptos.models import GrantAccess, Permission
 
 __version__ = 0
 

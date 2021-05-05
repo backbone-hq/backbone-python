@@ -5,6 +5,7 @@ description = "Tools to develop applications with Kryptos."
 authors = ["Kryptos Authors <contact@whatdomain.fuckme>"]
 license = "Proprietary"
 packages = [{ include = "kryptos" }]
+build = "tooling.py"
 
 [tool.poetry.scripts]
 kryptos = 'kryptos:main'
@@ -20,6 +21,8 @@ halo = "^0.0.31"
 black = "^20.8b1"
 pytest = "^6.2.3"
 pytest-asyncio = "^0.15.1"
+unasync = "^0.5.0"
+isort = "^5.8.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0a5"]

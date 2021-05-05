@@ -2,14 +2,15 @@ import httpx
 from halo import Halo
 from nacl.public import PrivateKey, PublicKey
 from nacl.utils import encoding
+
 from kryptos.crypto import (
-    encrypt_with_password,
-    decrypt_with_password,
-    encrypt_entry,
     decrypt_entry,
-    encrypt_grant,
     decrypt_grant,
     decrypt_hidden_token,
+    decrypt_with_password,
+    encrypt_entry,
+    encrypt_grant,
+    encrypt_with_password,
 )
 
 
