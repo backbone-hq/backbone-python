@@ -54,10 +54,14 @@ class KryptosClient:
 
     async def authenticate(self, permissions: List[Permission]):
         """Initialize the client with a scoped token"""
-        token: Optional[str] = await self.token.authenticate(permissions=permissions)
-
-        if token:
+        if not self.authenticator:
+            token: str = await self.token.authenticate(permissions=permissions)
             self.authenticator = KryptosAuth(client=self, permissions=permissions, token=token)
+
+    async def deauthenticate(self):
+        """Revoke the current token and remove the authenticator"""
+        await self.token.revoke()
+        self.authenticator = None
 
     async def paginate(self, endpoint):
         response = await self.client.get(endpoint, auth=self.authenticator)
@@ -80,7 +84,7 @@ class _TokenClient:
     def __init__(self, client: KryptosClient):
         self.kryptos = client
 
-    async def authenticate(self, permissions: List[Permission]) -> Optional[str]:
+    async def authenticate(self, permissions: List[Permission]) -> str:
         token_endpoint = self.kryptos.endpoint("token")
 
         response = await self.kryptos.client.post(
@@ -91,17 +95,21 @@ class _TokenClient:
                 "permissions": [permission.value for permission in permissions],
             },
         )
+        response.raise_for_status()
         return self._parse(response)
 
-    async def derive(self) -> Optional[str]:
+    async def derive(self) -> str:
         token_endpoint = self.kryptos.endpoint("token")
         response = await self.kryptos.client.patch(token_endpoint, auth=self.kryptos.authenticator)
+        response.raise_for_status()
         return self._parse(response)
 
-    def _parse(self, response: httpx.Response) -> Optional[str]:
-        if response.is_error:
-            raise Exception(response.json())
+    async def revoke(self) -> None:
+        token_endpoint = self.kryptos.endpoint("token")
+        response = await self.kryptos.client.delete(token_endpoint, auth=self.kryptos.authenticator)
+        response.raise_for_status()
 
+    def _parse(self, response: httpx.Response) -> str:
         result = response.json()
         hidden_token = result["hidden_token"]
         return crypto.decrypt_hidden_token(self.kryptos._secret_key, hidden_token.encode()).decode()
