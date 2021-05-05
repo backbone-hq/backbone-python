@@ -11,20 +11,21 @@ ADMIN_EMAIL = "root@kryptos.io"
 ADMIN_SK = PrivateKey(b"CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
 
-@pytest.fixture(scope="session")
-def client():
+@pytest.mark.asyncio
+@pytest.fixture(scope="function")
+async def client():
     client = KryptosClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
 
     # Create workspace
-    client.workspace.create(display_name=WORKSPACE_DISPLAY_NAME, email_address=ADMIN_EMAIL)
+    await client.workspace.create(display_name=WORKSPACE_DISPLAY_NAME, email_address=ADMIN_EMAIL)
 
     # Authenticate
-    client.authenticate(permissions=[Permission.ROOT])
+    await client.authenticate(permissions=[Permission.ROOT])
 
     yield client
 
     # Authenticate
-    client.authenticate(permissions=[Permission.ROOT])
+    await client.authenticate(permissions=[Permission.ROOT])
 
     # Delete workspace
-    client.workspace.delete(safety_check=False)
+    await client.workspace.delete(safety_check=False)

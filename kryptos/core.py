@@ -10,32 +10,19 @@ from nacl import encoding
 __version__ = 0
 
 
-def paginate(endpoint, *, client):
-    response = httpx.get(endpoint, auth=client.authenticator)
-    response.raise_for_status()
-    result = response.json()
-    yield from result["results"]
-
-    while result["next"]:
-        response = httpx.get(endpoint, params=result["next"], auth=client.authenticator)
-        response.raise_for_status()
-        result = response.json()
-        yield from result["results"]
-
-
 class KryptosAuth(httpx.Auth):
     def __init__(self, client: "KryptosClient", permissions: List[Permission], token: str):
-        self.client = client
+        self.kryptos = client
         self.permissions = permissions
         self.token = token
 
-    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
+    async def async_auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
         request.headers["Authorization"] = f"Bearer {self.token}"
         response = yield request
 
         if response.status_code == 401:
             request.headers["Authorization"] = f"Bearer {self.token}"
-            self.client.authenticate(self.permissions)
+            await self.kryptos.authenticate(self.permissions)
             yield request
 
 
@@ -43,10 +30,11 @@ class KryptosClient:
     _base_url = f"http://localhost:8000/v{__version__}"
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
+        self.client: httpx.AsyncClient = httpx.AsyncClient()
         self._secret_key: PrivateKey = secret_key
         self._public_key: PublicKey = secret_key.public_key
         self._username: str = username
-        self._workspace: str = workspace
+        self._workspace_name: str = workspace
 
         self.namespace: _NamespaceClient = _NamespaceClient(self)
         self.entry: _EntryClient = _EntryClient(self)
@@ -61,36 +49,53 @@ class KryptosClient:
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
         return cls(workspace=workspace, username=username, secret_key=PrivateKey(derived_private_key))
 
-    def authenticate(self, permissions: List[Permission]):
+    def endpoint(self, *parts: str) -> str:
+        return f"{self._base_url}/{'/'.join(parts)}"
+
+    async def authenticate(self, permissions: List[Permission]):
         """Initialize the client with a scoped token"""
-        token: Optional[str] = self.token.authenticate(permissions=permissions)
+        token: Optional[str] = await self.token.authenticate(permissions=permissions)
 
         if token:
             self.authenticator = KryptosAuth(client=self, permissions=permissions, token=token)
 
-    def endpoint(self, *parts: str) -> str:
-        return f"{self._base_url}/{'/'.join(parts)}"
+    async def paginate(self, endpoint):
+        response = await self.client.get(endpoint, auth=self.authenticator)
+        response.raise_for_status()
+        result = response.json()
+
+        for item in result["results"]:
+            yield item
+
+        while result["next"]:
+            response = await self.client.get(endpoint, params=result["next"], auth=self.authenticator)
+            response.raise_for_status()
+            result = response.json()
+
+            for item in result["results"]:
+                yield item
 
 
 class _TokenClient:
     def __init__(self, client: KryptosClient):
-        self.client = client
+        self.kryptos = client
 
-    def authenticate(self, permissions: List[Permission]) -> Optional[str]:
-        token_endpoint = self.client.endpoint("token")
-        response = httpx.post(
+    async def authenticate(self, permissions: List[Permission]) -> Optional[str]:
+        token_endpoint = self.kryptos.endpoint("token")
+
+        response = await self.kryptos.client.post(
             token_endpoint,
             json={
-                "workspace": self.client._workspace,
-                "username": self.client._username,
+                "workspace": self.kryptos._workspace_name,
+                "username": self.kryptos._username,
                 "permissions": [permission.value for permission in permissions],
             },
         )
         return self._parse(response)
 
-    def derive(self) -> Optional[str]:
-        token_endpoint = self.client.endpoint("token")
-        response = httpx.patch(token_endpoint, auth=self.client.authenticator)
+    async def derive(self) -> Optional[str]:
+        token_endpoint = self.kryptos.endpoint("token")
+        response = await self.kryptos.client.patch(token_endpoint, auth=self.kryptos.authenticator)
         return self._parse(response)
 
     def _parse(self, response: httpx.Response) -> Optional[str]:
@@ -99,38 +104,38 @@ class _TokenClient:
 
         result = response.json()
         hidden_token = result["hidden_token"]
-        return crypto.decrypt_hidden_token(self.client._secret_key, hidden_token.encode()).decode()
+        return crypto.decrypt_hidden_token(self.kryptos._secret_key, hidden_token.encode()).decode()
 
 
 class _WorkspaceClient:
     def __init__(self, client: KryptosClient):
-        self.client = client
+        self.kryptos = client
 
-    def get(self) -> dict:
-        endpoint = self.client.endpoint("workspace")
-        response = httpx.get(endpoint, auth=self.client.authenticator).json()
+    async def get(self) -> dict:
+        endpoint = self.kryptos.endpoint("workspace")
+        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def create(self, display_name: str, email_address: str) -> dict:
-        endpoint = self.client.endpoint("workspace")
+    async def create(self, display_name: str, email_address: str) -> dict:
+        endpoint = self.kryptos.endpoint("workspace")
 
         # Generate root namespace keypair
         namespace_key: PrivateKey = PrivateKey.generate()
-        namespace_grant = crypto.encrypt_grant(self.client._secret_key.public_key, namespace_key)
+        namespace_grant = crypto.encrypt_grant(self.kryptos._secret_key.public_key, namespace_key)
 
-        response = httpx.post(
+        response = await self.kryptos.client.post(
             endpoint,
             json={
-                "workspace": {"name": self.client._workspace, "display_name": display_name},
+                "workspace": {"name": self.kryptos._workspace_name, "display_name": display_name},
                 "user": {
-                    "name": self.client._username,
+                    "name": self.kryptos._username,
                     "email_address": email_address,
-                    "public_key": self.client._secret_key.public_key.encode(
+                    "public_key": self.kryptos._secret_key.public_key.encode(
                         encoder=encoding.URLSafeBase64Encoder
                     ).decode(),
                     "hidden_key": crypto.encrypt_with_secret(
-                        secret=self.client._secret_key.encode(), plaintext=self.client._secret_key.encode()
+                        secret=self.kryptos._secret_key.encode(), plaintext=self.kryptos._secret_key.encode()
                     ).decode(),
                     "permissions": [],  # Ignored by the server; the initial account must be root.
                 },
@@ -138,7 +143,7 @@ class _WorkspaceClient:
                     "public_key": namespace_key.public_key.encode(encoding.URLSafeBase64Encoder).decode(),
                     "grants": [
                         {
-                            "grantee_pk": self.client._secret_key.public_key.encode(
+                            "grantee_pk": self.kryptos._secret_key.public_key.encode(
                                 encoder=encoding.URLSafeBase64Encoder
                             ).decode(),
                             "access": list(map(lambda access: access.value, GrantAccess.__members__.values())),
@@ -147,124 +152,151 @@ class _WorkspaceClient:
                     ],
                 },
             },
-            auth=self.client.authenticator,
+            auth=self.kryptos.authenticator,
         )
 
         response.raise_for_status()
         return response.json()
 
-    def delete(self, safety_check=True) -> None:
+    async def delete(self, safety_check=True) -> None:
         if safety_check:
-            print(f"WARNING: You're about to delete the workspace {self.client._workspace}")
-            assert input("Please confirm by typing your workspace's name: ") == self.client._workspace
+            print(f"WARNING: You're about to delete the workspace {self.kryptos._workspace_name}")
+            assert input("Please confirm by typing your workspace's name: ") == self.kryptos._workspace_name
 
-        endpoint = self.client.endpoint("workspace")
-        response = httpx.delete(endpoint, auth=self.client.authenticator)
+        endpoint = self.kryptos.endpoint("workspace")
+        response = await self.kryptos.client.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
 
 class _UserClient:
     def __init__(self, client: KryptosClient):
-        self.client = client
+        self.kryptos = client
 
-    def get_all(self):
-        endpoint = self.client.endpoint("users")
-        yield from paginate(endpoint, client=self.client)
+    async def get_all(self):
+        endpoint = self.kryptos.endpoint("users")
+        async for item in self.kryptos.paginate(endpoint):
+            yield item
 
-    def find(self, username: str) -> dict:
-        endpoint = self.client.endpoint("user", username)
-        response = httpx.get(endpoint, auth=self.client.authenticator)
+    async def find(self, username: str) -> dict:
+        endpoint = self.kryptos.endpoint("user", username)
+        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def get(self) -> dict:
-        endpoint = self.client.endpoint("user")
-        response = httpx.get(endpoint, auth=self.client.authenticator)
+    async def get(self) -> dict:
+        endpoint = self.kryptos.endpoint("user")
+        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def create(
+    async def create(
         self,
         username: Optional[str] = None,
         secret_key: Optional[PrivateKey] = None,
         email_address: Optional[str] = None,
         permissions: List[Permission] = (),
     ) -> dict:
-        username = username or self.client._username
-        secret_key = secret_key or self.client._secret_key
+        username = username or self.kryptos._username
+        secret_key = secret_key or self.kryptos._secret_key
 
-        endpoint = self.client.endpoint("user")
-        response = httpx.post(
+        endpoint = self.kryptos.endpoint("user")
+        response = await self.kryptos.client.post(
             endpoint,
             json={
                 "name": username,
                 "email_address": email_address,
                 "public_key": secret_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "hidden_key": crypto.encrypt_with_secret(
-                    secret=self.client._secret_key.encode(), plaintext=self.client._secret_key.encode()
+                    secret=self.kryptos._secret_key.encode(), plaintext=self.kryptos._secret_key.encode()
                 ).decode(),
                 "permissions": [permission.value for permission in permissions],
             },
-            auth=self.client.authenticator,
+            auth=self.kryptos.authenticator,
         )
         response.raise_for_status()
         return response.json()
 
-    def create_from_credentials(
+    async def create_from_credentials(
         self, username: str, password: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
     ) -> dict:
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
-        return self.create(
+        return await self.create(
             username=username,
             secret_key=PrivateKey(derived_private_key),
             email_address=email_address,
             permissions=permissions,
         )
 
-    def delete(self) -> None:
-        endpoint = self.client.endpoint("user")
-        response = httpx.delete(endpoint, auth=self.client.authenticator)
+    async def delete(self) -> None:
+        endpoint = self.kryptos.endpoint("user")
+        response = await self.kryptos.client.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
 
 class _NamespaceClient:
     def __init__(self, client: KryptosClient):
-        self.client = client
+        self.kryptos = client
 
-    def get(self, key: str) -> dict:  # TODO: Decide whether this method should exist; no clear use-case
-        endpoint = self.client.endpoint("namespace", key)
-        response = httpx.get(endpoint, auth=self.client.authenticator).json()
+    async def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
+        endpoint = self.kryptos.endpoint("namespace", key)
+        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
-        return response.json()
+        result = response.json()
 
-    def get_chain(self, key: str) -> List[dict]:
-        endpoint = self.client.endpoint("chain", key)
-        response = httpx.get(endpoint, auth=self.client.authenticator)
+        # Follow and decrypt the namespace grant chain
+        current_sk: PrivateKey = self.kryptos._secret_key
+        for grant in result["chain"]:
+            subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
+            current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
+
+        # Find the relevant entry grant
+        current_pk = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
+        if not grants:
+            # This shouldn't happen; the user must have at least 1 `READ` grant on the entry for the endpoint to return
+            raise ValueError
+
+        # Pick the first
+        grant = grants[0]
+        namespace_public_key = PublicKey(result["public_key"], encoder=encoding.URLSafeBase64Encoder)
+        namespace_private_key = PrivateKey(crypto.decrypt_grant(namespace_public_key, current_sk, grant["value"]))
+        return namespace_private_key, grant
+
+    async def get(self, key: str) -> PrivateKey:
+        return (await self.__unroll_chain(key))[0]
+
+    async def get_chain(self, key: str) -> List[dict]:
+        endpoint = self.kryptos.endpoint("chain", key)
+        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json().get("chain")
 
-    def search(self, key: str):
-        endpoint = self.client.endpoint("namespaces", key)
-        yield from paginate(endpoint, client=self.client)
+    async def search(self, key: str):
+        endpoint = self.kryptos.endpoint("namespaces", key)
+        async for item in self.kryptos.paginate(endpoint):
+            yield item
 
-    def create(self, key: str, *, access: List[GrantAccess] = (), is_segregated: bool = False) -> dict:
+    async def create(self, key: str, *, access: List[GrantAccess] = (), is_segregated: bool = False) -> dict:
+        grant_access = [item.value for item in access or GrantAccess]
+
         if is_segregated:
-            grant_pk = self.client._public_key
-            grant_access = [item.value for item in access or GrantAccess]
+            # Grant access to the user directly
+            # TODO: Backend permissions
+            grant_pk = self.kryptos._public_key
         else:
             # Find the closest namespace
-            chain = self.get_chain(key)
+            chain = await self.get_chain(key)
             parent_grant = chain[-1]
 
             grant_pk = PublicKey(base64.urlsafe_b64decode(parent_grant["subject_pk"]))
-            grant_access = access or parent_grant["access"]
+            grant_access = grant_access or parent_grant["access"]
 
         # Generate new namespace keypair
         namespace_key: PrivateKey = PrivateKey.generate()
         namespace_grant = crypto.encrypt_grant(grant_pk, namespace_key)
 
-        endpoint = self.client.endpoint("namespace", key)
-        response = httpx.post(
+        endpoint = self.kryptos.endpoint("namespace", key)
+        response = await self.kryptos.client.post(
             endpoint,
             json={
                 "public_key": namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
@@ -276,60 +308,71 @@ class _NamespaceClient:
                     }
                 ],
             },
-            auth=self.client.authenticator,
+            auth=self.kryptos.authenticator,
         )
 
         response.raise_for_status()
         return response.json()
 
-    def delete(self, key: str) -> None:
-        endpoint = self.client.endpoint("namespace", key)
-        response = httpx.delete(endpoint, auth=self.client.authenticator)
+    async def delete(self, key: str) -> None:
+        endpoint = self.kryptos.endpoint("namespace", key)
+        response = await self.kryptos.client.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
-    # TODO @david: implement namespace granting/revocation
-    # def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey):
-    #     endpoint = self.client.endpoint("grant", "namespace", key)
-    # _, users_grant = self.__get(key)
-    # entry_key = crypto.decrypt_entry_encryption_key(users_grant, self.client._secret_key)
-    #
-    # grants = [
-    #     (
-    #         public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-    #         crypto.create_entry_grant(entry_key, public_key),
-    #     )
-    #     for public_key in users
-    # ]
-    #
-    # endpoint = self.client.endpoint("grant", "entry", key)
-    # response = httpx.post(
-    #     endpoint,
-    #     json=[grants],
-    #     auth=self.client.authenticator,
-    # )
-    # response.raise_for_status()
+    async def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey) -> None:
+        namespace_secret_key, namespace_grant = self.__unroll_chain(key)
 
-    # def revoke(self, key: str, *users: PublicKey):
-    #     endpoint = self.client.endpoint("grant", "namespace", key)
+        grants = [
+            (
+                public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                crypto.encrypt_grant(public_key, namespace_secret_key),
+            )
+            for public_key in users
+        ]
+
+        endpoint = self.kryptos.endpoint("grant", "namespace", key)
+        response = await self.kryptos.client.post(
+            endpoint,
+            json=[
+                {
+                    "grantee_pk": public_key.decode(),
+                    "value": value.decode(),
+                    "access": [level.value for level in access] or namespace_grant["access"],
+                }
+                for public_key, value in grants
+            ],
+            auth=self.kryptos.authenticator,
+        )
+        response.raise_for_status()
+
+    async def revoke(self, key: str, *users: PublicKey) -> None:
+        endpoint = self.kryptos.endpoint("grant", "namespace", key)
+
+        response = await self.kryptos.client.post(
+            endpoint,
+            json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
+            auth=self.kryptos.authenticator,
+        )
+        response.raise_for_status()
 
 
 class _EntryClient:
     def __init__(self, client: KryptosClient):
-        self.client = client
+        self.kryptos = client
 
-    def __unroll_chain(self, key: str) -> Tuple[str, str, PrivateKey]:
-        endpoint = self.client.endpoint("entry", key)
-        response = httpx.get(endpoint, auth=self.client.authenticator)
+    async def __unroll_chain(self, key: str) -> Tuple[str, str, PrivateKey]:
+        endpoint = self.kryptos.endpoint("entry", key)
+        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         result = response.json()
 
         # Follow and decrypt the namespace grant chain
-        current_sk: PrivateKey = self.client._secret_key
+        current_sk: PrivateKey = self.kryptos._secret_key
         for grant in result["chain"]:
             subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
             current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
 
-        # Find the user's entry grant
+        # Find the relevant entry grant
         current_pk = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
         grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
         if not grants:
@@ -340,27 +383,28 @@ class _EntryClient:
         current_grant = grants[0]
         return result["value"], current_grant["value"], current_sk
 
-    def get(self, key: str) -> str:
+    async def get(self, key: str) -> str:
         """
         Obtains the value stored under a particular key
         :param key: the key to obtain
         :return: the value if the user has sufficient access
         """
-        ciphertext, grant, grant_sk = self.__unroll_chain(key)
+        ciphertext, grant, grant_sk = await self.__unroll_chain(key)
         return crypto.decrypt_entry(ciphertext, grant.encode(), grant_sk).decode()
 
-    def search(self, key: str):
-        endpoint = self.client.endpoint("entries", key)
-        yield from paginate(endpoint, client=self.client)
+    async def search(self, key: str):
+        endpoint = self.kryptos.endpoint("entries", key)
+        async for item in self.kryptos.paginate(endpoint):
+            yield item
 
-    def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
-        chain = self.client.namespace.get_chain(key)
+    async def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
+        chain = await self.kryptos.namespace.get_chain(key)
         closest_namespace_grant = chain[-1]
         namespace_public_key = PublicKey(base64.urlsafe_b64decode(closest_namespace_grant["subject_pk"]))
         ciphertext, grants = crypto.encrypt_entry(value, namespace_public_key)
 
-        endpoint = self.client.endpoint("entry", key)
-        response = httpx.post(
+        endpoint = self.kryptos.endpoint("entry", key)
+        response = await self.kryptos.client.post(
             endpoint,
             json={
                 "value": ciphertext.decode(),
@@ -373,13 +417,13 @@ class _EntryClient:
                     for public_key, value in grants
                 ],
             },
-            auth=self.client.authenticator,
+            auth=self.kryptos.authenticator,
         )
 
         response.raise_for_status()
         return response.json()
 
-    def grant(self, key: str, access: List[GrantAccess], *users: PublicKey) -> dict:
+    async def grant(self, key: str, access: List[GrantAccess], *users: PublicKey) -> dict:
         # Get the user's grant
         _, grant, grant_sk = self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant.encode(), grant_sk)
@@ -392,20 +436,28 @@ class _EntryClient:
             for public_key in users
         ]
 
-        endpoint = self.client.endpoint("grant", "entry", key)
-        response = httpx.post(
+        endpoint = self.kryptos.endpoint("grant", "entry", key)
+        response = await self.kryptos.client.post(
             endpoint,
-            json=[grants],
-            auth=self.client.authenticator,
+            json=[
+                {
+                    "grantee_pk": public_key.decode(),
+                    "value": value.decode(),
+                    # TODO (dalmjali): Inherit grant access from the user's grant by default
+                    "access": [level.value for level in access],
+                }
+                for public_key, value in grants
+            ],
+            auth=self.kryptos.authenticator,
         )
         response.raise_for_status()
         return response.json()
 
-    def revoke(self, key: str, *users: PublicKey) -> None:
-        endpoint = self.client.endpoint("grant", "entry", key)
-        response = httpx.delete(
+    async def revoke(self, key: str, *users: PublicKey) -> None:
+        endpoint = self.kryptos.endpoint("grant", "entry", key)
+        response = await self.kryptos.client.delete(
             endpoint,
             params=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
-            auth=self.client.authenticator,
+            auth=self.kryptos.authenticator,
         )
         response.raise_for_status()
