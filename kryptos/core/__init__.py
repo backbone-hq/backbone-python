@@ -61,6 +61,9 @@ class KryptosClient:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    async def close(self):
         if self.__session:
             await self.__session.aclose()
 
