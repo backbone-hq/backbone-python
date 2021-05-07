@@ -1,3 +1,4 @@
+# Modified version of https://github.com/encode/httpcore/blob/master/unasync.py
 from pathlib import Path
 import re
 
@@ -34,6 +35,7 @@ _ASYNC_TO_SYNC = compile_substitutions(
         # HTTPx
         "async_auth_flow": "auth_flow",
         "httpx.AsyncClient": "httpx.Client",
+        "aclose": "close",
     }
 )
 
@@ -44,16 +46,16 @@ def unasync_line(line: str, replacements: dict) -> str:
     return line
 
 
-def unasync_file(in_path: Path, out_path: Path, replacements: dict):
-    with open(in_path, "r") as in_file:
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(out_path, "w", newline="") as out_file:
+def unasync_file(async_file: Path, sync_file: Path, replacements: dict):
+    with open(async_file, "r") as in_file:
+        sync_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_file, "w", newline="") as out_file:
             for line in in_file.readlines():
                 line = unasync_line(line, replacements)
                 out_file.write(line)
 
 
-def unasync_dir(from_dir: Path, out_dir: Path, replacements: dict):
+def unasync_directory(from_dir: Path, out_dir: Path, replacements: dict):
     async_to_sync = _ASYNC_TO_SYNC.copy()
     async_to_sync.update(compile_substitutions(replacements))
 
@@ -64,5 +66,5 @@ def unasync_dir(from_dir: Path, out_dir: Path, replacements: dict):
 
 
 if __name__ == "__main__":
-    unasync_dir(SOURCE / "core", SOURCE / "sync", replacements={})
-    unasync_dir(TESTS / "core", TESTS / "sync", replacements={})
+    unasync_directory(SOURCE / "core", SOURCE / "sync", replacements={})
+    unasync_directory(TESTS / "core", TESTS / "sync", replacements={})

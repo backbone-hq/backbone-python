@@ -12,8 +12,8 @@ __version__ = 0
 
 
 class KryptosAuth(httpx.Auth):
-    def __init__(self, client: "KryptosClient", permissions: List[Permission], token: str):
-        self.kryptos = client
+    def __init__(self, client: "KryptosClient", permissions: Optional[List[Permission]], token: str):
+        self.client = client
         self.permissions = permissions
         self.token = token
 
@@ -21,39 +21,61 @@ class KryptosAuth(httpx.Auth):
         request.headers["Authorization"] = f"Bearer {self.token}"
         response = yield request
 
+        # Reauthenticate in the event of an invalid token
         if response.status_code == 401:
-            request.headers["Authorization"] = f"Bearer {self.token}"
-            await self.kryptos.authenticate(self.permissions)
-            yield request
+            await self.client.authenticate(self.permissions)
 
 
 class KryptosClient:
     _base_url = f"http://localhost:8000/v{__version__}"
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
-        self.client: httpx.AsyncClient = httpx.AsyncClient()
+        # Kryptos parameters
         self._secret_key: PrivateKey = secret_key
         self._public_key: PublicKey = secret_key.public_key
         self._username: str = username
         self._workspace_name: str = workspace
 
+        # Endpoint Clients
         self.namespace: _NamespaceClient = _NamespaceClient(self)
         self.entry: _EntryClient = _EntryClient(self)
         self.token: _TokenClient = _TokenClient(self)
         self.workspace: _WorkspaceClient = _WorkspaceClient(self)
         self.user: _UserClient = _UserClient(self)
 
+        # Properties
+        self.__session: Optional[httpx.AsyncClient] = None
         self.authenticator: Optional[KryptosAuth] = None
+
+    @property
+    def session(self) -> httpx.AsyncClient:
+        if not self.__session:
+            self.__session = httpx.AsyncClient()
+
+        return self.__session
+
+    async def __aenter__(self):
+        if not self.__session:
+            self.__session = httpx.AsyncClient()
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.__session:
+            await self.__session.aclose()
+
+        self.__session = None
 
     @classmethod
     def from_credentials(cls, workspace: str, username: str, password: str):
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
         return cls(workspace=workspace, username=username, secret_key=PrivateKey(derived_private_key))
 
-    def endpoint(self, *parts: str) -> str:
-        return f"{self._base_url}/{'/'.join(parts)}"
+    @classmethod
+    def endpoint(cls, *parts: str) -> str:
+        return f"{cls._base_url}/{'/'.join(parts)}"
 
-    async def authenticate(self, permissions: List[Permission]):
+    async def authenticate(self, permissions: Optional[List[Permission]] = None):
         """Initialize the client with a scoped token"""
         if not self.authenticator:
             token: str = await self.token.authenticate(permissions=permissions)
@@ -65,7 +87,7 @@ class KryptosClient:
         self.authenticator = None
 
     async def paginate(self, endpoint):
-        response = await self.client.get(endpoint, auth=self.authenticator)
+        response = await self.session.get(endpoint, auth=self.authenticator)
         response.raise_for_status()
         result = response.json()
 
@@ -73,7 +95,7 @@ class KryptosClient:
             yield item
 
         while result["next"]:
-            response = await self.client.get(endpoint, params=result["next"], auth=self.authenticator)
+            response = await self.session.get(endpoint, params=result["next"], auth=self.authenticator)
             response.raise_for_status()
             result = response.json()
 
@@ -88,7 +110,7 @@ class _TokenClient:
     async def authenticate(self, permissions: List[Permission]) -> str:
         token_endpoint = self.kryptos.endpoint("token")
 
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             token_endpoint,
             json={
                 "workspace": self.kryptos._workspace_name,
@@ -101,13 +123,13 @@ class _TokenClient:
 
     async def derive(self) -> str:
         token_endpoint = self.kryptos.endpoint("token")
-        response = await self.kryptos.client.patch(token_endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.patch(token_endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return self._parse(response)
 
     async def revoke(self) -> None:
         token_endpoint = self.kryptos.endpoint("token")
-        response = await self.kryptos.client.delete(token_endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.delete(token_endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
     def _parse(self, response: httpx.Response) -> str:
@@ -122,7 +144,7 @@ class _WorkspaceClient:
 
     async def get(self) -> dict:
         endpoint = self.kryptos.endpoint("workspace")
-        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json()
 
@@ -133,7 +155,7 @@ class _WorkspaceClient:
         namespace_key: PrivateKey = PrivateKey.generate()
         namespace_grant = crypto.encrypt_grant(self.kryptos._secret_key.public_key, namespace_key)
 
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json={
                 "workspace": {"name": self.kryptos._workspace_name, "display_name": display_name},
@@ -173,7 +195,7 @@ class _WorkspaceClient:
             assert input("Please confirm by typing your workspace's name: ") == self.kryptos._workspace_name
 
         endpoint = self.kryptos.endpoint("workspace")
-        response = await self.kryptos.client.delete(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
 
@@ -188,13 +210,13 @@ class _UserClient:
 
     async def find(self, username: str) -> dict:
         endpoint = self.kryptos.endpoint("user", username)
-        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json()
 
     async def get(self) -> dict:
         endpoint = self.kryptos.endpoint("user")
-        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json()
 
@@ -209,7 +231,7 @@ class _UserClient:
         secret_key = secret_key or self.kryptos._secret_key
 
         endpoint = self.kryptos.endpoint("user")
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json={
                 "name": username,
@@ -238,7 +260,7 @@ class _UserClient:
 
     async def delete(self) -> None:
         endpoint = self.kryptos.endpoint("user")
-        response = await self.kryptos.client.delete(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
 
@@ -248,7 +270,7 @@ class _NamespaceClient:
 
     async def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
         endpoint = self.kryptos.endpoint("namespace", key)
-        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         result = response.json()
 
@@ -276,7 +298,7 @@ class _NamespaceClient:
 
     async def get_chain(self, key: str) -> List[dict]:
         endpoint = self.kryptos.endpoint("chain", key)
-        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         return response.json().get("chain")
 
@@ -305,7 +327,7 @@ class _NamespaceClient:
         namespace_grant = crypto.encrypt_grant(grant_pk, namespace_key)
 
         endpoint = self.kryptos.endpoint("namespace", key)
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json={
                 "public_key": namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
@@ -325,7 +347,7 @@ class _NamespaceClient:
 
     async def delete(self, key: str) -> None:
         endpoint = self.kryptos.endpoint("namespace", key)
-        response = await self.kryptos.client.delete(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
     async def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey) -> None:
@@ -340,7 +362,7 @@ class _NamespaceClient:
         ]
 
         endpoint = self.kryptos.endpoint("grant", "namespace", key)
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json=[
                 {
@@ -357,7 +379,7 @@ class _NamespaceClient:
     async def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.kryptos.endpoint("grant", "namespace", key)
 
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
             auth=self.kryptos.authenticator,
@@ -371,7 +393,7 @@ class _EntryClient:
 
     async def __unroll_chain(self, key: str) -> Tuple[str, str, PrivateKey]:
         endpoint = self.kryptos.endpoint("entry", key)
-        response = await self.kryptos.client.get(endpoint, auth=self.kryptos.authenticator)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
         result = response.json()
 
@@ -413,7 +435,7 @@ class _EntryClient:
         ciphertext, grants = crypto.encrypt_entry(value, namespace_public_key)
 
         endpoint = self.kryptos.endpoint("entry", key)
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json={
                 "value": ciphertext.decode(),
@@ -446,7 +468,7 @@ class _EntryClient:
         ]
 
         endpoint = self.kryptos.endpoint("grant", "entry", key)
-        response = await self.kryptos.client.post(
+        response = await self.kryptos.session.post(
             endpoint,
             json=[
                 {
@@ -464,7 +486,7 @@ class _EntryClient:
 
     async def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.kryptos.endpoint("grant", "entry", key)
-        response = await self.kryptos.client.delete(
+        response = await self.kryptos.session.delete(
             endpoint,
             params=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
             auth=self.kryptos.authenticator,
