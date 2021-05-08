@@ -1,7 +1,6 @@
 # Modified version of https://github.com/encode/httpcore/blob/master/unasync.py
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROOT: Path = Path(__file__).parents[0]
 SOURCE: Path = ROOT / "kryptos"
