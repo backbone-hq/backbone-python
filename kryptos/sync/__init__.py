@@ -261,9 +261,11 @@ class _UserClient:
             permissions=permissions,
         )
 
-    def delete(self) -> None:
+    def delete(self, force_delete: bool = False) -> None:
         endpoint = self.kryptos.endpoint("user")
-        response = self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
+        response = self.kryptos.session.delete(
+            endpoint, params={"force_delete": force_delete}, auth=self.kryptos.authenticator
+        )
         response.raise_for_status()
 
 
