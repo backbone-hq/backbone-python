@@ -12,10 +12,10 @@ __version__ = 0
 
 
 class KryptosAuth(httpx.Auth):
-    def __init__(self, client: "KryptosClient", permissions: Optional[List[Permission]], token: str):
+    def __init__(self, client: "KryptosClient", token: str, **kwargs):
         self.client = client
-        self.permissions = permissions
         self.token = token
+        self.authentication_kwargs = kwargs
 
     def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
         request.headers["Authorization"] = f"Bearer {self.token}"
@@ -23,7 +23,9 @@ class KryptosAuth(httpx.Auth):
 
         # Reauthenticate in the event of an invalid token
         if response.status_code == 401:
-            self.client.authenticate(self.permissions)
+            self.client.authenticator = None  # Skip token revocation
+            self.client.authenticate(**self.authentication_kwargs)
+            yield request
 
 
 class KryptosClient:
@@ -78,11 +80,13 @@ class KryptosClient:
     def endpoint(cls, *parts: str) -> str:
         return f"{cls._base_url}/{'/'.join(parts)}"
 
-    def authenticate(self, permissions: Optional[List[Permission]] = None):
+    def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400):
         """Initialize the client with a scoped token"""
-        if not self.authenticator:
-            token: str = self.token.authenticate(permissions=permissions)
-            self.authenticator = KryptosAuth(client=self, permissions=permissions, token=token)
+        if self.authenticator:
+            self.deauthenticate()
+
+        token: str = self.token.authenticate(permissions=permissions, duration=duration)
+        self.authenticator = KryptosAuth(client=self, token=token, permissions=permissions, duration=duration)
 
     def deauthenticate(self):
         """Revoke the current token and remove the authenticator"""
@@ -110,7 +114,14 @@ class _TokenClient:
     def __init__(self, client: KryptosClient):
         self.kryptos = client
 
-    def authenticate(self, permissions: List[Permission]) -> str:
+    def get(self) -> dict:
+        token_endpoint = self.kryptos.endpoint("token")
+
+        response = self.kryptos.session.get(token_endpoint, auth=self.kryptos.authenticator)
+        response.raise_for_status()
+        return response.json()
+
+    def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         token_endpoint = self.kryptos.endpoint("token")
 
         response = self.kryptos.session.post(
@@ -118,15 +129,23 @@ class _TokenClient:
             json={
                 "workspace": self.kryptos._workspace_name,
                 "username": self.kryptos._username,
-                "permissions": [permission.value for permission in permissions],
+                "permissions": None if permissions is None else [permission.value for permission in permissions],
+                "duration": duration,
             },
         )
         response.raise_for_status()
         return self._parse(response)
 
-    def derive(self) -> str:
+    def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         token_endpoint = self.kryptos.endpoint("token")
-        response = self.kryptos.session.patch(token_endpoint, auth=self.kryptos.authenticator)
+        response = self.kryptos.session.patch(
+            token_endpoint,
+            json={
+                "permissions": None if permissions is None else [permission.value for permission in permissions],
+                "duration": duration,
+            },
+            auth=self.kryptos.authenticator,
+        )
         response.raise_for_status()
         return self._parse(response)
 
@@ -458,6 +477,11 @@ class _EntryClient:
 
         response.raise_for_status()
         return response.json()
+
+    def delete(self, key: str) -> None:
+        endpoint = self.kryptos.endpoint("entry", key)
+        response = self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
+        response.raise_for_status()
 
     def grant(self, key: str, access: List[GrantAccess], *users: PublicKey) -> dict:
         # Get the user's grant

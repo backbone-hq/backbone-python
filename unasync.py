@@ -28,7 +28,7 @@ _ASYNC_TO_SYNC = compile_substitutions(
         "async for": "for",
         "await ": "",
         # Pytest
-        "@pytest.mark.asyncio": "",
+        "@pytest.mark.asyncio": "@pytest.mark.sync",
         # Kryptos
         "kryptos.core": "kryptos.sync",
         # HTTPx
