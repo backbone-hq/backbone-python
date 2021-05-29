@@ -1,7 +1,6 @@
 import pytest
 from httpx import HTTPError
 
-
 # Testing workspace creation/deletion is implicitly done by the client setup and teardown
 
 

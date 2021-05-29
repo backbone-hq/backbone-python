@@ -1,7 +1,8 @@
 import pytest
-from kryptos.sync import Permission
-from nacl import encoding
 from httpx import HTTPError
+from nacl import encoding
+
+from kryptos.sync import Permission
 
 
 @pytest.mark.sync

@@ -72,13 +72,19 @@ class KryptosClient:
         self.__session = None
 
     @classmethod
-    def from_credentials(cls, workspace: str, username: str, password: str):
+    def from_credentials(cls, workspace: str, username: str, password: str) -> "KryptosClient":
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
         return cls(workspace=workspace, username=username, secret_key=PrivateKey(derived_private_key))
 
     @classmethod
     def endpoint(cls, *parts: str) -> str:
         return f"{cls._base_url}/{'/'.join(parts)}"
+
+    async def load_token(self, token: str):
+        if self.authenticator:
+            await self.token.revoke(throw=False)
+
+        self.authenticator = KryptosAuth(client=self, token=token, permissions=[], duration=None)
 
     async def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400):
         """Initialize the client with a scoped token"""
@@ -149,10 +155,12 @@ class _TokenClient:
         response.raise_for_status()
         return self._parse(response)
 
-    async def revoke(self) -> None:
+    async def revoke(self, throw: bool = True) -> None:
         token_endpoint = self.kryptos.endpoint("token")
         response = await self.kryptos.session.delete(token_endpoint, auth=self.kryptos.authenticator)
-        response.raise_for_status()
+
+        if throw:
+            response.raise_for_status()
 
     def _parse(self, response: httpx.Response) -> str:
         result = response.json()
@@ -230,7 +238,7 @@ class _UserClient:
         async for item in self.kryptos.paginate(endpoint):
             yield item
 
-    async def find(self, username: str) -> dict:
+    async def search(self, username: str) -> dict:
         endpoint = self.kryptos.endpoint("user", username)
         response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
@@ -311,11 +319,11 @@ class _NamespaceClient:
             # This shouldn't happen; the user must have at least 1 `READ` grant on the entry for the endpoint to return
             raise ValueError
 
-        # Pick the first
-        grant = grants[0]
+        # Pick the user grant with the greatest access
+        user_grant: dict = max(grants, key=lambda g: len(g["access"]))
         namespace_public_key = PublicKey(result["public_key"], encoder=encoding.URLSafeBase64Encoder)
-        namespace_private_key = PrivateKey(crypto.decrypt_grant(namespace_public_key, current_sk, grant["value"]))
-        return namespace_private_key, grant
+        namespace_private_key = PrivateKey(crypto.decrypt_grant(namespace_public_key, current_sk, user_grant["value"]))
+        return namespace_private_key, user_grant
 
     async def get(self, key: str) -> PrivateKey:
         return (await self.__unroll_chain(key))[0]
@@ -326,8 +334,8 @@ class _NamespaceClient:
         response.raise_for_status()
         return response.json().get("chain")
 
-    async def search(self, key: str):
-        endpoint = self.kryptos.endpoint("namespaces", key)
+    async def search(self, prefix: str):
+        endpoint = self.kryptos.endpoint("namespaces", prefix)
         async for item in self.kryptos.paginate(endpoint):
             yield item
 
@@ -374,27 +382,19 @@ class _NamespaceClient:
         response = await self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
-    async def grant(self, key: str, access: List[GrantAccess] = (), *users: PublicKey) -> None:
+    async def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> None:
         namespace_secret_key, namespace_grant = self.__unroll_chain(key)
-
-        grants = [
-            (
-                public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                crypto.encrypt_grant(public_key, namespace_secret_key),
-            )
-            for public_key in users
-        ]
 
         endpoint = self.kryptos.endpoint("grant", "namespace", key)
         response = await self.kryptos.session.post(
             endpoint,
             json=[
                 {
-                    "grantee_pk": public_key.decode(),
-                    "value": value.decode(),
+                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "value": crypto.encrypt_grant(public_key, namespace_secret_key).decode(),
                     "access": [level.value for level in access] or namespace_grant["access"],
                 }
-                for public_key, value in grants
+                for public_key in users
             ],
             auth=self.kryptos.authenticator,
         )
@@ -415,7 +415,7 @@ class _EntryClient:
     def __init__(self, client: KryptosClient):
         self.kryptos = client
 
-    async def __unroll_chain(self, key: str) -> Tuple[str, str, PrivateKey]:
+    async def __unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
         endpoint = self.kryptos.endpoint("entry", key)
         response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
@@ -428,15 +428,15 @@ class _EntryClient:
             current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
 
         # Find the relevant entry grant
-        current_pk = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
-        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
+        current_pk: str = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+        grants: List[dict] = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
         if not grants:
             # This shouldn't happen; the user must have at least 1 `READ` grant on the entry for the endpoint to return
             raise ValueError
 
-        # Pick the first
-        current_grant = grants[0]
-        return result["value"], current_grant["value"], current_sk
+        # Pick the user grant with the greatest access
+        user_grant: dict = max(grants, key=lambda g: len(g["access"]))
+        return result["value"], user_grant, current_sk
 
     async def get(self, key: str) -> str:
         """
@@ -445,10 +445,10 @@ class _EntryClient:
         :return: the value if the user has sufficient access
         """
         ciphertext, grant, grant_sk = await self.__unroll_chain(key)
-        return crypto.decrypt_entry(ciphertext, grant.encode(), grant_sk).decode()
+        return crypto.decrypt_entry(ciphertext, grant["value"].encode(), grant_sk).decode()
 
-    async def search(self, key: str):
-        endpoint = self.kryptos.endpoint("entries", key)
+    async def search(self, prefix: str):
+        endpoint = self.kryptos.endpoint("entries", prefix)
         async for item in self.kryptos.paginate(endpoint):
             yield item
 
@@ -483,30 +483,21 @@ class _EntryClient:
         response = await self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
         response.raise_for_status()
 
-    async def grant(self, key: str, access: List[GrantAccess], *users: PublicKey) -> dict:
+    async def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> dict:
         # Get the user's grant
         _, grant, grant_sk = self.__unroll_chain(key)
-        entry_key = crypto.decrypt_entry_encryption_key(grant.encode(), grant_sk)
-
-        grants = [
-            (
-                public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                crypto.create_entry_grant(entry_key, public_key),
-            )
-            for public_key in users
-        ]
+        entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
 
         endpoint = self.kryptos.endpoint("grant", "entry", key)
         response = await self.kryptos.session.post(
             endpoint,
             json=[
                 {
-                    "grantee_pk": public_key.decode(),
-                    "value": value.decode(),
-                    # TODO (dalmjali): Inherit grant access from the user's grant by default
-                    "access": [level.value for level in access],
+                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "value": crypto.create_entry_grant(entry_key, public_key).decode(),
+                    "access": [level.value for level in access] or grant["access"],
                 }
-                for public_key, value in grants
+                for public_key in users
             ],
             auth=self.kryptos.authenticator,
         )
@@ -515,9 +506,15 @@ class _EntryClient:
 
     async def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.kryptos.endpoint("grant", "entry", key)
-        response = await self.kryptos.session.delete(
+
+        response = await self.kryptos.session.request(
+            "DELETE",
             endpoint,
-            params=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
+            json={
+                "public_keys": [
+                    public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users
+                ]
+            },
             auth=self.kryptos.authenticator,
         )
         response.raise_for_status()

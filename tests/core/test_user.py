@@ -1,7 +1,7 @@
 import pytest
-from kryptos.core import Permission
 from httpx import HTTPError
 
+from kryptos.core import Permission
 
 # TODO: find_user endpoint
 # TODO: user pagination endpoint

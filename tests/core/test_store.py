@@ -1,7 +1,8 @@
 import pytest
-from kryptos.core import Permission
-from nacl import encoding
 from httpx import HTTPError
+from nacl import encoding
+
+from kryptos.core import Permission
 
 
 @pytest.mark.asyncio

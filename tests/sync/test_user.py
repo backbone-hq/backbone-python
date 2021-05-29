@@ -1,7 +1,7 @@
 import pytest
-from kryptos.sync import Permission
 from httpx import HTTPError
 
+from kryptos.sync import Permission
 
 # TODO: find_user endpoint
 # TODO: user pagination endpoint

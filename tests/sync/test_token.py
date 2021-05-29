@@ -1,9 +1,11 @@
-import pytest
-from kryptos.sync import Permission, KryptosClient
-from httpx import HTTPError
 from datetime import datetime
-from nacl.public import PrivateKey
+
+import pytest
+from httpx import HTTPError
 from nacl.exceptions import CryptoError
+from nacl.public import PrivateKey
+
+from kryptos.sync import KryptosClient, Permission
 
 
 @pytest.mark.sync
