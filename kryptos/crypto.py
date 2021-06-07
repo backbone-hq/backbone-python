@@ -66,3 +66,13 @@ def decrypt_entry(ciphertext: str, secret_kek: bytes, secret_key: PrivateKey) ->
 
 def decrypt_entry_encryption_key(secret_kek: bytes, secret_key: PrivateKey) -> bytes:
     return SealedBox(secret_key).decrypt(secret_kek, encoder=encoding.URLSafeBase64Encoder)
+
+
+def decrypt_namespace_grant_chain(secret_key: PrivateKey, chain: List[dict]) -> PrivateKey:
+    current_sk = secret_key
+
+    for grant in chain:
+        subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
+        current_sk: PrivateKey = PrivateKey(decrypt_grant(subject_pk, current_sk, grant["value"]))
+
+    return current_sk

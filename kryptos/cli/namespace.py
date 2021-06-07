@@ -19,12 +19,12 @@ def namespace_search(prefix: str):
 
 
 @namespace_cli.command("set")
-def namespace_create(key: str, access: List[GrantAccess] = (), segregated: bool = False):
+def namespace_create(key: str, access: List[GrantAccess] = (), isolated: bool = False):
     """Creates an namespace"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        client.namespace.create(key, access=access, is_segregated=segregated)
+        client.namespace.create(key, access=access, isolated=isolated)
         typer.echo(f"{key}")
 
 

@@ -67,7 +67,7 @@ async def test_entry_operations_in_segregated_namespace(client):
     entry_key = "key-001"
     entry_value = "value"
 
-    await client.namespace.create(namespace_key, is_segregated=True)
+    await client.namespace.create(namespace_key, isolated=True)
     await client.entry.set(entry_key, entry_value)
     assert entry_value == await client.entry.get(entry_key)
     await client.entry.delete(entry_key)
@@ -82,7 +82,7 @@ async def test_search(client):
 
     await client.namespace.create("key")
     await client.namespace.create("key-1")
-    await client.namespace.create("key-2", is_segregated=True)
+    await client.namespace.create("key-2", isolated=True)
 
     await client.entry.set("key-x", "dummy")
     await client.entry.set("key-1-1", "dummy")

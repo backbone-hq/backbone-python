@@ -1,5 +1,5 @@
 import base64
-from typing import Generator, List, Optional, Tuple
+from typing import Generator, List, Optional, Tuple, AsyncIterable
 
 import httpx
 from nacl import encoding
@@ -306,23 +306,19 @@ class _NamespaceClient:
         response.raise_for_status()
         result = response.json()
 
-        # Follow and decrypt the namespace grant chain
-        current_sk: PrivateKey = self.kryptos._secret_key
-        for grant in result["chain"]:
-            subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
-            current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
+        # Decrypt the grant chain; obtain the nearest namespace's private key
+        closest_namespace_sk = crypto.decrypt_namespace_grant_chain(self.kryptos._secret_key, result["chain"])
 
-        # Find the relevant entry grant
-        current_pk = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
-        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
-        if not grants:
-            # This shouldn't happen; the user must have at least 1 `READ` grant on the entry for the endpoint to return
-            raise ValueError
+        # Find the nearest namespace's grant
+        current_namespace_pk = closest_namespace_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_namespace_pk]
 
-        # Pick the user grant with the greatest access
-        user_grant: dict = max(grants, key=lambda g: len(g["access"]))
+        # The user should only have a single grant (with at least READ access)
+        user_grant = grants[0]
         namespace_public_key = PublicKey(result["public_key"], encoder=encoding.URLSafeBase64Encoder)
-        namespace_private_key = PrivateKey(crypto.decrypt_grant(namespace_public_key, current_sk, user_grant["value"]))
+        namespace_private_key = PrivateKey(
+            crypto.decrypt_grant(namespace_public_key, closest_namespace_sk, user_grant["value"])
+        )
         return namespace_private_key, user_grant
 
     async def get(self, key: str) -> PrivateKey:
@@ -334,35 +330,78 @@ class _NamespaceClient:
         response.raise_for_status()
         return response.json().get("chain")
 
-    async def search(self, prefix: str):
+    async def layer(self, prefix: str) -> dict:
+        endpoint = self.kryptos.endpoint("layer", prefix)
+        response = await self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator, timeout=None)
+        response.raise_for_status()
+        return response.json()
+
+    async def search(self, prefix: str) -> AsyncIterable[str]:
         endpoint = self.kryptos.endpoint("namespaces", prefix)
         async for item in self.kryptos.paginate(endpoint):
             yield item
 
-    async def create(self, key: str, *, access: List[GrantAccess] = (), is_segregated: bool = False) -> dict:
+    async def create(self, key: str, *, access: List[GrantAccess] = (), isolated: bool = False) -> dict:
         grant_access = [item.value for item in access or GrantAccess]
 
-        if is_segregated:
+        # Generate new namespace keypair
+        new_namespace_key: PrivateKey = PrivateKey.generate()
+
+        # Track any grant replacements
+        namespace_grant_replacements = {}
+        entry_grant_replacements = {}
+
+        if isolated:
             # Grant access to the user directly
-            # TODO: Backend permissions
             grant_pk = self.kryptos._public_key
         else:
-            # Find the closest namespace
-            chain = await self.get_chain(key)
-            parent_grant = chain[-1]
+            # Find all relevant children of the namespace
+            children = await self.kryptos.namespace.layer(key)
+            chain = children["chain"]
 
-            grant_pk = PublicKey(base64.urlsafe_b64decode(parent_grant["subject_pk"]))
-            grant_access = grant_access or parent_grant["access"]
+            closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.kryptos._secret_key, chain)
+            grant_pk: PublicKey = closest_namespace_sk.public_key
 
-        # Generate new namespace keypair
-        namespace_key: PrivateKey = PrivateKey.generate()
-        namespace_grant = crypto.encrypt_grant(grant_pk, namespace_key)
+            # Default grant access to the closest namespace's access
+            grant_access = grant_access or chain[-1]["access"]
+            """
+            closest_namespace_pk: str = grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
 
+            # Replace child namespace grants
+            for item in children["namespaces"]:
+                # Find the closest namespace's grant
+                child_public_key = PublicKey(item["public_key"], encoder=encoding.URLSafeBase64Encoder)
+                grant = next((grant for grant in item["grants"] if grant["grantee_pk"] == closest_namespace_pk), None)
+                grantee_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(child_public_key, closest_namespace_sk, grant["value"]))
+
+                key = item["key"]
+                namespace_grant_replacements[key] = {
+                    "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "value": crypto.encrypt_grant(new_namespace_key.public_key, grantee_sk).decode()
+                    "access": grant["access"]
+                }
+
+            # Replace child entry grants
+            for item in children["entries"]:
+                # Find the closest namespace's grant
+                grant = next((grant for grant in item["grants"] if grant["grantee_pk"] == closest_namespace_pk), None)
+                entry_key = crypto.decrypt_entry_encryption_key(grant["value"], closest_namespace_sk)
+
+                key = item["key"]
+                entry_grant_replacements[key] = {
+                    "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "value": crypto.create_entry_grant(entry_key, new_namespace_key.public_key).decode(),
+                    "access": grant["access"],
+                }
+            """
+
+        # Grant access to the new namespace
+        namespace_grant = crypto.encrypt_grant(grant_pk, new_namespace_key)
         endpoint = self.kryptos.endpoint("namespace", key)
         response = await self.kryptos.session.post(
             endpoint,
             json={
-                "public_key": namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                "public_key": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "grants": [
                     {
                         "grantee_pk": grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
@@ -373,7 +412,6 @@ class _NamespaceClient:
             },
             auth=self.kryptos.authenticator,
         )
-
         response.raise_for_status()
         return response.json()
 
@@ -403,7 +441,8 @@ class _NamespaceClient:
     async def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.kryptos.endpoint("grant", "namespace", key)
 
-        response = await self.kryptos.session.post(
+        response = await self.kryptos.session.request(
+            "DELETE",
             endpoint,
             json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
             auth=self.kryptos.authenticator,
@@ -421,22 +460,16 @@ class _EntryClient:
         response.raise_for_status()
         result = response.json()
 
-        # Follow and decrypt the namespace grant chain
-        current_sk: PrivateKey = self.kryptos._secret_key
-        for grant in result["chain"]:
-            subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
-            current_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(subject_pk, current_sk, grant["value"]))
+        # Decrypt the grant chain; obtain the nearest namespace's private key
+        closest_namespace_sk = crypto.decrypt_namespace_grant_chain(self.kryptos._secret_key, result["chain"])
 
-        # Find the relevant entry grant
-        current_pk: str = current_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
-        grants: List[dict] = [grant for grant in result["grants"] if grant["grantee_pk"] == current_pk]
-        if not grants:
-            # This shouldn't happen; the user must have at least 1 `READ` grant on the entry for the endpoint to return
-            raise ValueError
+        # Find the nearest namespace's grant
+        current_namespace_pk = closest_namespace_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+        grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_namespace_pk]
 
-        # Pick the user grant with the greatest access
-        user_grant: dict = max(grants, key=lambda g: len(g["access"]))
-        return result["value"], user_grant, current_sk
+        # The user should only have a single grant (with at least READ access)
+        user_grant = grants[0]
+        return result["value"], user_grant, closest_namespace_sk
 
     async def get(self, key: str) -> str:
         """
@@ -447,7 +480,7 @@ class _EntryClient:
         ciphertext, grant, grant_sk = await self.__unroll_chain(key)
         return crypto.decrypt_entry(ciphertext, grant["value"].encode(), grant_sk).decode()
 
-    async def search(self, prefix: str):
+    async def search(self, prefix: str) -> AsyncIterable[str]:
         endpoint = self.kryptos.endpoint("entries", prefix)
         async for item in self.kryptos.paginate(endpoint):
             yield item
@@ -510,11 +543,7 @@ class _EntryClient:
         response = await self.kryptos.session.request(
             "DELETE",
             endpoint,
-            json={
-                "public_keys": [
-                    public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users
-                ]
-            },
+            json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
             auth=self.kryptos.authenticator,
         )
         response.raise_for_status()

@@ -67,7 +67,7 @@ def test_entry_operations_in_segregated_namespace(client):
     entry_key = "key-001"
     entry_value = "value"
 
-    client.namespace.create(namespace_key, is_segregated=True)
+    client.namespace.create(namespace_key, isolated=True)
     client.entry.set(entry_key, entry_value)
     assert entry_value == client.entry.get(entry_key)
     client.entry.delete(entry_key)
@@ -82,7 +82,7 @@ def test_search(client):
 
     client.namespace.create("key")
     client.namespace.create("key-1")
-    client.namespace.create("key-2", is_segregated=True)
+    client.namespace.create("key-2", isolated=True)
 
     client.entry.set("key-x", "dummy")
     client.entry.set("key-1-1", "dummy")
