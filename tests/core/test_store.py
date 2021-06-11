@@ -2,7 +2,7 @@ import pytest
 from httpx import HTTPError
 from nacl import encoding
 
-from kryptos.core import Permission
+from backbone.core import Permission
 
 
 @pytest.mark.asyncio

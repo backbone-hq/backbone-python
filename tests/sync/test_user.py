@@ -1,7 +1,7 @@
 import pytest
 from httpx import HTTPError
 
-from kryptos.sync import Permission
+from backbone.sync import Permission
 
 # TODO: find_user endpoint
 # TODO: user pagination endpoint
@@ -17,7 +17,7 @@ def test_user_read(client):
 
     # Assert properties defined remain intact
     assert result["name"] == "admin"
-    assert result["email_address"] == "root@kryptos.io"
+    assert result["email_address"] == "root@backbone.io"
     assert result["public_key"] == "etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4="
     assert result["permissions"] == [Permission.ROOT.value]
 

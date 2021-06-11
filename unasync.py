@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 ROOT: Path = Path(__file__).parents[0]
-SOURCE: Path = ROOT / "kryptos"
+SOURCE: Path = ROOT / "backbone"
 TESTS: Path = ROOT / "tests"
 
 
@@ -29,8 +29,8 @@ _ASYNC_TO_SYNC = compile_substitutions(
         "await ": "",
         # Pytest
         "@pytest.mark.asyncio": "@pytest.mark.sync",
-        # Kryptos
-        "kryptos.core": "kryptos.sync",
+        # Backbone
+        "backbone.core": "backbone.sync",
         # HTTPx
         "async_auth_flow": "auth_flow",
         "httpx.AsyncClient": "httpx.Client",

@@ -3,7 +3,7 @@ from halo import Halo
 from nacl.public import PrivateKey, PublicKey
 from nacl.utils import encoding
 
-from kryptos.crypto import (
+from backbone.crypto import (
     decrypt_entry,
     decrypt_grant,
     decrypt_hidden_token,
@@ -45,7 +45,7 @@ def create_workspace(name, display_name, admin_username, admin_password):
 
     user_params = {
         "name": admin_username,
-        "email_address": "admin@kryptos.io",
+        "email_address": "admin@backbone.io",
         "public_key": user_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
         "hidden_key": hidden_key.decode(),
         "permissions": ["root"],

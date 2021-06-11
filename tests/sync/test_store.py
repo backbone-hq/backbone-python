@@ -2,7 +2,7 @@ import pytest
 from httpx import HTTPError
 from nacl import encoding
 
-from kryptos.sync import Permission
+from backbone.sync import Permission
 
 
 @pytest.mark.sync

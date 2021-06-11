@@ -1,16 +1,17 @@
 import json
-from kryptos.sync import KryptosClient
-from kryptos import crypto
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
-from enum import Enum
-from nacl.public import PrivateKey
-from nacl import encoding
 
 import typer
+from nacl import encoding
+from nacl.public import PrivateKey
 
-KRYPTOS_ROOT = Path(__file__).parent
-KRYPTOS_CONFIG = KRYPTOS_ROOT / "kryptos.json"
+from backbone import crypto
+from backbone.sync import BackboneClient
+
+BACKBONE_ROOT = Path(__file__).parent
+BACKBONE_CONFIG = BACKBONE_ROOT / "backbone.json"
 
 
 class Configuration(Enum):
@@ -50,7 +51,7 @@ def resolve_configuration(
 
 
 def client_from_config(configuration: Dict[Configuration, str]):
-    client = KryptosClient(
+    client = BackboneClient(
         workspace=configuration[Configuration.WORKSPACE],
         username=configuration[Configuration.USERNAME],
         secret_key=PrivateKey(configuration[Configuration.KEY], encoder=encoding.URLSafeBase64Encoder),
@@ -75,7 +76,7 @@ def get_secret(username: str, password: bool) -> PrivateKey:
 
 def read_configuration() -> Dict[Configuration, str]:
     try:
-        with open(KRYPTOS_CONFIG) as configuration_file:
+        with open(BACKBONE_CONFIG) as configuration_file:
             configuration = json.load(configuration_file)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
         return {}
@@ -91,5 +92,5 @@ def read_configuration() -> Dict[Configuration, str]:
 
 
 def write_configuration(configuration: Dict[Configuration, str]) -> None:
-    with open(KRYPTOS_CONFIG, "w") as config_file:
+    with open(BACKBONE_CONFIG, "w") as config_file:
         json.dump({key.value: value for key, value in configuration.items()}, config_file)

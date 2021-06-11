@@ -3,29 +3,28 @@ from typing import Optional
 import typer
 from nacl.utils import encoding
 
-from kryptos.cli.config import config_cli
-from kryptos.cli.entry import entry_cli
-from kryptos.cli.namespace import namespace_cli
-from kryptos.cli.user import user_cli
-
-from kryptos.cli.utilities import (
-    resolve_configuration,
+from backbone.cli.config import config_cli
+from backbone.cli.entry import entry_cli
+from backbone.cli.namespace import namespace_cli
+from backbone.cli.user import user_cli
+from backbone.cli.utilities import (
+    Configuration,
     client_from_config,
     get_secret,
-    Configuration,
-    write_configuration,
     read_configuration,
+    resolve_configuration,
+    write_configuration,
 )
 
 # Specify CLI structure
-kryptos_cli = typer.Typer()
-kryptos_cli.add_typer(config_cli, name="config")
-kryptos_cli.add_typer(entry_cli, name="entry")
-kryptos_cli.add_typer(namespace_cli, name="namespace")
-kryptos_cli.add_typer(user_cli, name="user")
+backbone_cli = typer.Typer()
+backbone_cli.add_typer(config_cli, name="config")
+backbone_cli.add_typer(entry_cli, name="entry")
+backbone_cli.add_typer(namespace_cli, name="namespace")
+backbone_cli.add_typer(user_cli, name="user")
 
 
-@kryptos_cli.command("authenticate")
+@backbone_cli.command("authenticate")
 def authenticate(username: str, workspace: Optional[str] = None, duration: int = 86_400, password: bool = False):
     configuration = resolve_configuration(
         workspace=workspace,
@@ -46,7 +45,7 @@ def authenticate(username: str, workspace: Optional[str] = None, duration: int =
     write_configuration(configuration)
 
 
-@kryptos_cli.command("deauthenticate")
+@backbone_cli.command("deauthenticate")
 def deauthenticate():
     configuration = read_configuration()
 

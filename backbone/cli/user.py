@@ -2,9 +2,9 @@ from typing import Optional
 
 import typer
 
-from kryptos import crypto
-from kryptos.cli.utilities import read_configuration, client_from_config
-from kryptos.sync import PrivateKey, encoding
+from backbone import crypto
+from backbone.cli.utilities import client_from_config, read_configuration
+from backbone.sync import PrivateKey, encoding
 
 user_cli = typer.Typer()
 

@@ -13,8 +13,8 @@ async def test_workspace_read(client):
     assert set(result.keys()) == {"name", "display_name"}
 
     # Assert properties defined remain intact
-    assert result["name"] == "kryptos"
-    assert result["display_name"] == "kryptos-display"
+    assert result["name"] == "backbone"
+    assert result["display_name"] == "backbone-display"
 
 
 @pytest.mark.asyncio

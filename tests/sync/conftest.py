@@ -4,20 +4,20 @@ import pytest
 from nacl import encoding
 from nacl.public import PrivateKey
 
-from kryptos.sync import KryptosClient, Permission
+from backbone.sync import BackboneClient, Permission
 
-WORKSPACE_NAME = "kryptos"
-WORKSPACE_DISPLAY_NAME = "kryptos-display"
+WORKSPACE_NAME = "backbone"
+WORKSPACE_DISPLAY_NAME = "backbone-display"
 
 ADMIN = "admin"
-ADMIN_EMAIL = "root@kryptos.io"
+ADMIN_EMAIL = "root@backbone.io"
 ADMIN_SK = PrivateKey("CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
 
 @pytest.mark.sync
 @pytest.fixture()
 def client():
-    client = KryptosClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
+    client = BackboneClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
 
     # Create workspace
     client.workspace.create(display_name=WORKSPACE_DISPLAY_NAME, email_address=ADMIN_EMAIL)
@@ -48,7 +48,7 @@ def create_user(client):
             username=username, secret_key=secret_key, email_address=email_address, permissions=permissions
         )
 
-        return KryptosClient(workspace=WORKSPACE_NAME, username=username, secret_key=secret_key)
+        return BackboneClient(workspace=WORKSPACE_NAME, username=username, secret_key=secret_key)
 
     yield _create_user
 

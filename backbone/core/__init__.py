@@ -1,38 +1,38 @@
 import base64
-from typing import Generator, List, Optional, Tuple, Iterable
+from typing import AsyncIterable, Generator, List, Optional, Tuple
 
 import httpx
 from nacl import encoding
 from nacl.public import PrivateKey, PublicKey
 
-from kryptos import crypto
-from kryptos.models import GrantAccess, Permission
+from backbone import crypto
+from backbone.models import GrantAccess, Permission
 
 __version__ = 0
 
 
-class KryptosAuth(httpx.Auth):
-    def __init__(self, client: "KryptosClient", token: str, **kwargs):
+class BackboneAuth(httpx.Auth):
+    def __init__(self, client: "BackboneClient", token: str, **kwargs):
         self.client = client
         self.token = token
         self.authentication_kwargs = kwargs
 
-    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
+    async def async_auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
         request.headers["Authorization"] = f"Bearer {self.token}"
         response = yield request
 
         # Reauthenticate in the event of an invalid token
         if response.status_code == 401:
             self.client.authenticator = None  # Skip token revocation
-            self.client.authenticate(**self.authentication_kwargs)
+            await self.client.authenticate(**self.authentication_kwargs)
             yield request
 
 
-class KryptosClient:
-    _base_url = f"http://localhost:8000/v{__version__}"
+class BackboneClient:
+    _base_url = f"https://backbone.dev/v{__version__}"
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
-        # Kryptos parameters
+        # Backbone parameters
         self._secret_key: PrivateKey = secret_key
         self._public_key: PublicKey = secret_key.public_key
         self._username: str = username
@@ -46,33 +46,33 @@ class KryptosClient:
         self.user: _UserClient = _UserClient(self)
 
         # Properties
-        self.__session: Optional[httpx.Client] = None
-        self.authenticator: Optional[KryptosAuth] = None
+        self.__session: Optional[httpx.AsyncClient] = None
+        self.authenticator: Optional[BackboneAuth] = None
 
     @property
-    def session(self) -> httpx.Client:
+    def session(self) -> httpx.AsyncClient:
         if not self.__session:
-            self.__session = httpx.Client()
+            self.__session = httpx.AsyncClient()
 
         return self.__session
 
-    def __enter__(self):
+    async def __aenter__(self):
         if not self.__session:
-            self.__session = httpx.Client()
+            self.__session = httpx.AsyncClient()
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
 
-    def close(self):
+    async def close(self):
         if self.__session:
-            self.__session.close()
+            await self.__session.aclose()
 
         self.__session = None
 
     @classmethod
-    def from_credentials(cls, workspace: str, username: str, password: str) -> "KryptosClient":
+    def from_credentials(cls, workspace: str, username: str, password: str) -> "BackboneClient":
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
         return cls(workspace=workspace, username=username, secret_key=PrivateKey(derived_private_key))
 
@@ -80,27 +80,27 @@ class KryptosClient:
     def endpoint(cls, *parts: str) -> str:
         return f"{cls._base_url}/{'/'.join(parts)}"
 
-    def load_token(self, token: str):
+    async def load_token(self, token: str):
         if self.authenticator:
-            self.token.revoke(throw=False)
+            await self.token.revoke(throw=False)
 
-        self.authenticator = KryptosAuth(client=self, token=token, permissions=[], duration=None)
+        self.authenticator = BackboneAuth(client=self, token=token, permissions=[], duration=None)
 
-    def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400):
+    async def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400):
         """Initialize the client with a scoped token"""
         if self.authenticator:
-            self.deauthenticate()
+            await self.deauthenticate()
 
-        token: str = self.token.authenticate(permissions=permissions, duration=duration)
-        self.authenticator = KryptosAuth(client=self, token=token, permissions=permissions, duration=duration)
+        token: str = await self.token.authenticate(permissions=permissions, duration=duration)
+        self.authenticator = BackboneAuth(client=self, token=token, permissions=permissions, duration=duration)
 
-    def deauthenticate(self):
+    async def deauthenticate(self):
         """Revoke the current token and remove the authenticator"""
-        self.token.revoke()
+        await self.token.revoke()
         self.authenticator = None
 
-    def paginate(self, endpoint):
-        response = self.session.get(endpoint, auth=self.authenticator)
+    async def paginate(self, endpoint):
+        response = await self.session.get(endpoint, auth=self.authenticator)
         response.raise_for_status()
         result = response.json()
 
@@ -108,7 +108,7 @@ class KryptosClient:
             yield item
 
         while result["next"]:
-            response = self.session.get(endpoint, params=result["next"], auth=self.authenticator)
+            response = await self.session.get(endpoint, params=result["next"], auth=self.authenticator)
             response.raise_for_status()
             result = response.json()
 
@@ -117,24 +117,24 @@ class KryptosClient:
 
 
 class _TokenClient:
-    def __init__(self, client: KryptosClient):
-        self.kryptos = client
+    def __init__(self, client: BackboneClient):
+        self.backbone = client
 
-    def get(self) -> dict:
-        token_endpoint = self.kryptos.endpoint("token")
+    async def get(self) -> dict:
+        token_endpoint = self.backbone.endpoint("token")
 
-        response = self.kryptos.session.get(token_endpoint, auth=self.kryptos.authenticator)
+        response = await self.backbone.session.get(token_endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
-        token_endpoint = self.kryptos.endpoint("token")
+    async def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
+        token_endpoint = self.backbone.endpoint("token")
 
-        response = self.kryptos.session.post(
+        response = await self.backbone.session.post(
             token_endpoint,
             json={
-                "workspace": self.kryptos._workspace_name,
-                "username": self.kryptos._username,
+                "workspace": self.backbone._workspace_name,
+                "username": self.backbone._username,
                 "permissions": None if permissions is None else [permission.value for permission in permissions],
                 "duration": duration,
             },
@@ -142,22 +142,22 @@ class _TokenClient:
         response.raise_for_status()
         return self._parse(response)
 
-    def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
-        token_endpoint = self.kryptos.endpoint("token")
-        response = self.kryptos.session.patch(
+    async def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
+        token_endpoint = self.backbone.endpoint("token")
+        response = await self.backbone.session.patch(
             token_endpoint,
             json={
                 "permissions": None if permissions is None else [permission.value for permission in permissions],
                 "duration": duration,
             },
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()
         return self._parse(response)
 
-    def revoke(self, throw: bool = True) -> None:
-        token_endpoint = self.kryptos.endpoint("token")
-        response = self.kryptos.session.delete(token_endpoint, auth=self.kryptos.authenticator)
+    async def revoke(self, throw: bool = True) -> None:
+        token_endpoint = self.backbone.endpoint("token")
+        response = await self.backbone.session.delete(token_endpoint, auth=self.backbone.authenticator)
 
         if throw:
             response.raise_for_status()
@@ -165,38 +165,38 @@ class _TokenClient:
     def _parse(self, response: httpx.Response) -> str:
         result = response.json()
         hidden_token = result["hidden_token"]
-        return crypto.decrypt_hidden_token(self.kryptos._secret_key, hidden_token.encode()).decode()
+        return crypto.decrypt_hidden_token(self.backbone._secret_key, hidden_token.encode()).decode()
 
 
 class _WorkspaceClient:
-    def __init__(self, client: KryptosClient):
-        self.kryptos = client
+    def __init__(self, client: BackboneClient):
+        self.backbone = client
 
-    def get(self) -> dict:
-        endpoint = self.kryptos.endpoint("workspace")
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
+    async def get(self) -> dict:
+        endpoint = self.backbone.endpoint("workspace")
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def create(self, display_name: str, email_address: str) -> dict:
-        endpoint = self.kryptos.endpoint("workspace")
+    async def create(self, display_name: str, email_address: str) -> dict:
+        endpoint = self.backbone.endpoint("workspace")
 
         # Generate root namespace keypair
         namespace_key: PrivateKey = PrivateKey.generate()
-        namespace_grant = crypto.encrypt_grant(self.kryptos._secret_key.public_key, namespace_key)
+        namespace_grant = crypto.encrypt_grant(self.backbone._secret_key.public_key, namespace_key)
 
-        response = self.kryptos.session.post(
+        response = await self.backbone.session.post(
             endpoint,
             json={
-                "workspace": {"name": self.kryptos._workspace_name, "display_name": display_name},
+                "workspace": {"name": self.backbone._workspace_name, "display_name": display_name},
                 "user": {
-                    "name": self.kryptos._username,
+                    "name": self.backbone._username,
                     "email_address": email_address,
-                    "public_key": self.kryptos._secret_key.public_key.encode(
+                    "public_key": self.backbone._secret_key.public_key.encode(
                         encoder=encoding.URLSafeBase64Encoder
                     ).decode(),
                     "hidden_key": crypto.encrypt_with_secret(
-                        secret=self.kryptos._secret_key.encode(), plaintext=self.kryptos._secret_key.encode()
+                        secret=self.backbone._secret_key.encode(), plaintext=self.backbone._secret_key.encode()
                     ).decode(),
                     "permissions": [],  # Ignored by the server; the initial account must be root.
                 },
@@ -204,7 +204,7 @@ class _WorkspaceClient:
                     "public_key": namespace_key.public_key.encode(encoding.URLSafeBase64Encoder).decode(),
                     "grants": [
                         {
-                            "grantee_pk": self.kryptos._secret_key.public_key.encode(
+                            "grantee_pk": self.backbone._secret_key.public_key.encode(
                                 encoder=encoding.URLSafeBase64Encoder
                             ).decode(),
                             "access": list(map(lambda access: access.value, GrantAccess.__members__.values())),
@@ -213,101 +213,101 @@ class _WorkspaceClient:
                     ],
                 },
             },
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
 
         response.raise_for_status()
         return response.json()
 
-    def delete(self, safety_check=True) -> None:
+    async def delete(self, safety_check=True) -> None:
         if safety_check:
-            print(f"WARNING: You're about to delete the workspace {self.kryptos._workspace_name}")
-            assert input("Please confirm by typing your workspace's name: ") == self.kryptos._workspace_name
+            print(f"WARNING: You're about to delete the workspace {self.backbone._workspace_name}")
+            assert input("Please confirm by typing your workspace's name: ") == self.backbone._workspace_name
 
-        endpoint = self.kryptos.endpoint("workspace")
-        response = self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
+        endpoint = self.backbone.endpoint("workspace")
+        response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
 
 class _UserClient:
-    def __init__(self, client: KryptosClient):
-        self.kryptos = client
+    def __init__(self, client: BackboneClient):
+        self.backbone = client
 
-    def get_all(self):
-        endpoint = self.kryptos.endpoint("users")
-        for item in self.kryptos.paginate(endpoint):
+    async def get_all(self):
+        endpoint = self.backbone.endpoint("users")
+        async for item in self.backbone.paginate(endpoint):
             yield item
 
-    def search(self, username: str) -> dict:
-        endpoint = self.kryptos.endpoint("user", username)
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
+    async def search(self, username: str) -> dict:
+        endpoint = self.backbone.endpoint("user", username)
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def get(self) -> dict:
-        endpoint = self.kryptos.endpoint("user")
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
+    async def get(self) -> dict:
+        endpoint = self.backbone.endpoint("user")
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json()
 
-    def create(
+    async def create(
         self,
         username: Optional[str] = None,
         secret_key: Optional[PrivateKey] = None,
         email_address: Optional[str] = None,
         permissions: List[Permission] = (),
     ) -> dict:
-        username = username or self.kryptos._username
-        secret_key = secret_key or self.kryptos._secret_key
+        username = username or self.backbone._username
+        secret_key = secret_key or self.backbone._secret_key
 
-        endpoint = self.kryptos.endpoint("user")
-        response = self.kryptos.session.post(
+        endpoint = self.backbone.endpoint("user")
+        response = await self.backbone.session.post(
             endpoint,
             json={
                 "name": username,
                 "email_address": email_address,
                 "public_key": secret_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "hidden_key": crypto.encrypt_with_secret(
-                    secret=self.kryptos._secret_key.encode(), plaintext=self.kryptos._secret_key.encode()
+                    secret=self.backbone._secret_key.encode(), plaintext=self.backbone._secret_key.encode()
                 ).decode(),
                 "permissions": [permission.value for permission in permissions],
             },
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()
         return response.json()
 
-    def create_from_credentials(
+    async def create_from_credentials(
         self, username: str, password: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
     ) -> dict:
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
-        return self.create(
+        return await self.create(
             username=username,
             secret_key=PrivateKey(derived_private_key),
             email_address=email_address,
             permissions=permissions,
         )
 
-    def delete(self, force_delete: bool = False) -> None:
-        endpoint = self.kryptos.endpoint("user")
-        response = self.kryptos.session.delete(
-            endpoint, params={"force_delete": force_delete}, auth=self.kryptos.authenticator
+    async def delete(self, force_delete: bool = False) -> None:
+        endpoint = self.backbone.endpoint("user")
+        response = await self.backbone.session.delete(
+            endpoint, params={"force_delete": force_delete}, auth=self.backbone.authenticator
         )
         response.raise_for_status()
 
 
 class _NamespaceClient:
-    def __init__(self, client: KryptosClient):
-        self.kryptos = client
+    def __init__(self, client: BackboneClient):
+        self.backbone = client
 
-    def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
-        endpoint = self.kryptos.endpoint("namespace", key)
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
+    async def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
+        endpoint = self.backbone.endpoint("namespace", key)
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         result = response.json()
 
         # Decrypt the grant chain; obtain the nearest namespace's private key
-        closest_namespace_sk = crypto.decrypt_namespace_grant_chain(self.kryptos._secret_key, result["chain"])
+        closest_namespace_sk = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, result["chain"])
 
         # Find the nearest namespace's grant
         current_namespace_pk = closest_namespace_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
@@ -321,27 +321,27 @@ class _NamespaceClient:
         )
         return namespace_private_key, user_grant
 
-    def get(self, key: str) -> PrivateKey:
-        return (self.__unroll_chain(key))[0]
+    async def get(self, key: str) -> PrivateKey:
+        return (await self.__unroll_chain(key))[0]
 
-    def get_chain(self, key: str) -> List[dict]:
-        endpoint = self.kryptos.endpoint("chain", key)
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
+    async def get_chain(self, key: str) -> List[dict]:
+        endpoint = self.backbone.endpoint("chain", key)
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json().get("chain")
 
-    def layer(self, prefix: str) -> dict:
-        endpoint = self.kryptos.endpoint("layer", prefix)
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator, timeout=None)
+    async def layer(self, prefix: str) -> dict:
+        endpoint = self.backbone.endpoint("layer", prefix)
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator, timeout=None)
         response.raise_for_status()
         return response.json()
 
-    def search(self, prefix: str) -> Iterable[str]:
-        endpoint = self.kryptos.endpoint("namespaces", prefix)
-        for item in self.kryptos.paginate(endpoint):
+    async def search(self, prefix: str) -> AsyncIterable[str]:
+        endpoint = self.backbone.endpoint("namespaces", prefix)
+        async for item in self.backbone.paginate(endpoint):
             yield item
 
-    def create(self, key: str, *, access: List[GrantAccess] = (), isolated: bool = False) -> dict:
+    async def create(self, key: str, *, access: List[GrantAccess] = (), isolated: bool = False) -> dict:
         grant_access = [item.value for item in access or GrantAccess]
 
         # Generate new namespace keypair
@@ -353,13 +353,13 @@ class _NamespaceClient:
 
         if isolated:
             # Grant access to the user directly
-            grant_pk = self.kryptos._public_key
+            grant_pk = self.backbone._public_key
         else:
             # Find all relevant children of the namespace
-            children = self.kryptos.namespace.layer(key)
+            children = await self.backbone.namespace.layer(key)
             chain = children["chain"]
 
-            closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.kryptos._secret_key, chain)
+            closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
             grant_pk: PublicKey = closest_namespace_sk.public_key
 
             # Default grant access to the closest namespace's access
@@ -397,8 +397,8 @@ class _NamespaceClient:
 
         # Grant access to the new namespace
         namespace_grant = crypto.encrypt_grant(grant_pk, new_namespace_key)
-        endpoint = self.kryptos.endpoint("namespace", key)
-        response = self.kryptos.session.post(
+        endpoint = self.backbone.endpoint("namespace", key)
+        response = await self.backbone.session.post(
             endpoint,
             json={
                 "public_key": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
@@ -410,21 +410,21 @@ class _NamespaceClient:
                     }
                 ],
             },
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()
         return response.json()
 
-    def delete(self, key: str) -> None:
-        endpoint = self.kryptos.endpoint("namespace", key)
-        response = self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
+    async def delete(self, key: str) -> None:
+        endpoint = self.backbone.endpoint("namespace", key)
+        response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
-    def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> None:
+    async def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> None:
         namespace_secret_key, namespace_grant = self.__unroll_chain(key)
 
-        endpoint = self.kryptos.endpoint("grant", "namespace", key)
-        response = self.kryptos.session.post(
+        endpoint = self.backbone.endpoint("grant", "namespace", key)
+        response = await self.backbone.session.post(
             endpoint,
             json=[
                 {
@@ -434,34 +434,34 @@ class _NamespaceClient:
                 }
                 for public_key in users
             ],
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()
 
-    def revoke(self, key: str, *users: PublicKey) -> None:
-        endpoint = self.kryptos.endpoint("grant", "namespace", key)
+    async def revoke(self, key: str, *users: PublicKey) -> None:
+        endpoint = self.backbone.endpoint("grant", "namespace", key)
 
-        response = self.kryptos.session.request(
+        response = await self.backbone.session.request(
             "DELETE",
             endpoint,
             json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()
 
 
 class _EntryClient:
-    def __init__(self, client: KryptosClient):
-        self.kryptos = client
+    def __init__(self, client: BackboneClient):
+        self.backbone = client
 
-    def __unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
-        endpoint = self.kryptos.endpoint("entry", key)
-        response = self.kryptos.session.get(endpoint, auth=self.kryptos.authenticator)
+    async def __unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
+        endpoint = self.backbone.endpoint("entry", key)
+        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         result = response.json()
 
         # Decrypt the grant chain; obtain the nearest namespace's private key
-        closest_namespace_sk = crypto.decrypt_namespace_grant_chain(self.kryptos._secret_key, result["chain"])
+        closest_namespace_sk = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, result["chain"])
 
         # Find the nearest namespace's grant
         current_namespace_pk = closest_namespace_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
@@ -471,28 +471,28 @@ class _EntryClient:
         user_grant = grants[0]
         return result["value"], user_grant, closest_namespace_sk
 
-    def get(self, key: str) -> str:
+    async def get(self, key: str) -> str:
         """
         Obtains the value stored under a particular key
         :param key: the key to obtain
         :return: the value if the user has sufficient access
         """
-        ciphertext, grant, grant_sk = self.__unroll_chain(key)
+        ciphertext, grant, grant_sk = await self.__unroll_chain(key)
         return crypto.decrypt_entry(ciphertext, grant["value"].encode(), grant_sk).decode()
 
-    def search(self, prefix: str) -> Iterable[str]:
-        endpoint = self.kryptos.endpoint("entries", prefix)
-        for item in self.kryptos.paginate(endpoint):
+    async def search(self, prefix: str) -> AsyncIterable[str]:
+        endpoint = self.backbone.endpoint("entries", prefix)
+        async for item in self.backbone.paginate(endpoint):
             yield item
 
-    def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
-        chain = self.kryptos.namespace.get_chain(key)
+    async def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
+        chain = await self.backbone.namespace.get_chain(key)
         closest_namespace_grant = chain[-1]
         namespace_public_key = PublicKey(base64.urlsafe_b64decode(closest_namespace_grant["subject_pk"]))
         ciphertext, grants = crypto.encrypt_entry(value, namespace_public_key)
 
-        endpoint = self.kryptos.endpoint("entry", key)
-        response = self.kryptos.session.post(
+        endpoint = self.backbone.endpoint("entry", key)
+        response = await self.backbone.session.post(
             endpoint,
             json={
                 "value": ciphertext.decode(),
@@ -505,24 +505,24 @@ class _EntryClient:
                     for public_key, value in grants
                 ],
             },
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
 
         response.raise_for_status()
         return response.json()
 
-    def delete(self, key: str) -> None:
-        endpoint = self.kryptos.endpoint("entry", key)
-        response = self.kryptos.session.delete(endpoint, auth=self.kryptos.authenticator)
+    async def delete(self, key: str) -> None:
+        endpoint = self.backbone.endpoint("entry", key)
+        response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
-    def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> dict:
+    async def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> dict:
         # Get the user's grant
         _, grant, grant_sk = self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
 
-        endpoint = self.kryptos.endpoint("grant", "entry", key)
-        response = self.kryptos.session.post(
+        endpoint = self.backbone.endpoint("grant", "entry", key)
+        response = await self.backbone.session.post(
             endpoint,
             json=[
                 {
@@ -532,18 +532,18 @@ class _EntryClient:
                 }
                 for public_key in users
             ],
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()
         return response.json()
 
-    def revoke(self, key: str, *users: PublicKey) -> None:
-        endpoint = self.kryptos.endpoint("grant", "entry", key)
+    async def revoke(self, key: str, *users: PublicKey) -> None:
+        endpoint = self.backbone.endpoint("grant", "entry", key)
 
-        response = self.kryptos.session.request(
+        response = await self.backbone.session.request(
             "DELETE",
             endpoint,
             json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
-            auth=self.kryptos.authenticator,
+            auth=self.backbone.authenticator,
         )
         response.raise_for_status()

@@ -5,7 +5,7 @@ from httpx import HTTPError
 from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 
-from kryptos.core import KryptosClient, Permission
+from backbone.core import BackboneClient, Permission
 
 
 @pytest.mark.asyncio
@@ -13,7 +13,7 @@ async def test_fake_token(client, create_user):
     await client.authenticate()
 
     # Create a client for a nonexistent account
-    fake_client = KryptosClient(workspace=client._workspace_name, username="fake", secret_key=PrivateKey.generate())
+    fake_client = BackboneClient(workspace=client._workspace_name, username="fake", secret_key=PrivateKey.generate())
 
     # Token decryption fails
     with pytest.raises(CryptoError) as _exception:

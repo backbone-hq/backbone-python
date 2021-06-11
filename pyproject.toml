@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "kryptos-sdk"
+name = "backbone-sdk"
 version = "0.1.0"
-description = "Tools to develop applications with Kryptos."
-authors = ["Kryptos Authors <contact@whatdomain.fuckme>"]
+description = "Tools for development with Backbone"
+authors = ["Backbone Developers <inbox@backbone.dev>"]
 license = "Proprietary"
-packages = [{ include = "kryptos" }]
+packages = [{ include = "backbone" }]
 
 [tool.poetry.scripts]
-kryptos = 'kryptos:main'
+backbone = 'backbone:main'
 
 [tool.poetry.dependencies]
 python = "^3.7"

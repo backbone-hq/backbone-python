@@ -2,7 +2,7 @@ from typing import Dict
 
 import typer
 
-from kryptos.cli.utilities import read_configuration, write_configuration, Configuration
+from backbone.cli.utilities import Configuration, read_configuration, write_configuration
 
 config_cli = typer.Typer()
 
