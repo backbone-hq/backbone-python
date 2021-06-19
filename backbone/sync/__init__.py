@@ -29,7 +29,8 @@ class BackboneAuth(httpx.Auth):
 
 
 class BackboneClient:
-    _base_url = f"https://backbone.dev/v{__version__}"
+    _base_url = f"http://localhost:8000/v{__version__}"
+    # _base_url = f"https://backbone.dev/v{__version__}"
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
         # Backbone parameters
@@ -330,11 +331,13 @@ class _NamespaceClient:
         response.raise_for_status()
         return response.json().get("chain")
 
+    """
     def layer(self, prefix: str) -> dict:
         endpoint = self.backbone.endpoint("layer", prefix)
-        response = self.backbone.session.get(endpoint, auth=self.backbone.authenticator, timeout=None)
+        response = self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json()
+    """
 
     def search(self, prefix: str) -> Iterable[str]:
         endpoint = self.backbone.endpoint("namespaces", prefix)
@@ -356,14 +359,15 @@ class _NamespaceClient:
             grant_pk = self.backbone._public_key
         else:
             # Find all relevant children of the namespace
-            children = self.backbone.namespace.layer(key)
-            chain = children["chain"]
+            chain = self.backbone.namespace.get_chain(key)
 
             closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
             grant_pk: PublicKey = closest_namespace_sk.public_key
 
             # Default grant access to the closest namespace's access
             grant_access = grant_access or chain[-1]["access"]
+
+            # TODO: Intermediate namespaces requires the layer API to exist
             """
             closest_namespace_pk: str = grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
 
