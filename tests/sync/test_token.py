@@ -27,10 +27,9 @@ def test_client_authentication_explicit_permissions(client):
 
     # Get the existing token
     token = client.token.get()
-    assert set(token.keys()) == {"hidden_key", "hidden_token", "creation", "expiration", "permissions"}
+    assert set(token.keys()) == {"hidden_token", "creation", "expiration", "permissions"}
 
-    # Check the lengths of ciphertexts
-    assert len(token["hidden_key"]) == 96
+    # Check the lengths of hidden token
     assert len(token["hidden_token"]) == 88
 
     # Check the formats of the timestamps; throws `ValueError` if not ISO8601 compliant

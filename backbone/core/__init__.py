@@ -196,9 +196,6 @@ class _WorkspaceClient:
                     "public_key": self.backbone._secret_key.public_key.encode(
                         encoder=encoding.URLSafeBase64Encoder
                     ).decode(),
-                    "hidden_key": crypto.encrypt_with_secret(
-                        secret=self.backbone._secret_key.encode(), plaintext=self.backbone._secret_key.encode()
-                    ).decode(),
                     "permissions": [],  # Ignored by the server; the initial account must be root.
                 },
                 "namespace": {
@@ -268,9 +265,6 @@ class _UserClient:
                 "name": username,
                 "email_address": email_address,
                 "public_key": secret_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                "hidden_key": crypto.encrypt_with_secret(
-                    secret=self.backbone._secret_key.encode(), plaintext=self.backbone._secret_key.encode()
-                ).decode(),
                 "permissions": [permission.value for permission in permissions],
             },
             auth=self.backbone.authenticator,

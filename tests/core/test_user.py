@@ -13,7 +13,7 @@ async def test_user_read(client):
     await client.authenticate(permissions=[])
 
     result = await client.user.get()
-    assert set(result.keys()) == {"name", "email_address", "public_key", "hidden_key", "permissions"}
+    assert set(result.keys()) == {"name", "email_address", "public_key", "permissions"}
 
     # Assert properties defined remain intact
     assert result["name"] == "admin"

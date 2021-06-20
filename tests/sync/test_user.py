@@ -13,7 +13,7 @@ def test_user_read(client):
     client.authenticate(permissions=[])
 
     result = client.user.get()
-    assert set(result.keys()) == {"name", "email_address", "public_key", "hidden_key", "permissions"}
+    assert set(result.keys()) == {"name", "email_address", "public_key", "permissions"}
 
     # Assert properties defined remain intact
     assert result["name"] == "admin"
