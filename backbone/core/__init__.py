@@ -272,7 +272,7 @@ class _UserClient:
     async def create_self(self, email_address: Optional[str] = None, permissions: List[Permission] = ()):
         return self.create(
             username=self.backbone._username,
-            public_key=self.backbone._secret_key.public_key,
+            public_key=self.backbone._public_key,
             email_address=email_address,
             permissions=permissions,
         )
@@ -280,10 +280,10 @@ class _UserClient:
     async def create_from_credentials(
         self, username: str, password: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
     ) -> dict:
-        derived_private_key = crypto.derive_password_key(identity=username, password=password)
+        derived_public_key = PrivateKey(crypto.derive_password_key(identity=username, password=password)).public_key
         return await self.create(
             username=username,
-            secret_key=PrivateKey(derived_private_key),
+            public_key=derived_public_key,
             email_address=email_address,
             permissions=permissions,
         )
