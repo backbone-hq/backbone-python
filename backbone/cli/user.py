@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import Optional, List
 
 import typer
 
 from backbone import crypto
 from backbone.cli.utilities import client_from_config, read_configuration
-from backbone.sync import PrivateKey, encoding
+from backbone.sync import PrivateKey, PublicKey, Permission, encoding
 
 user_cli = typer.Typer()
 
@@ -39,21 +39,35 @@ def user_get():
 
 @user_cli.command("create")
 def user_create(
-    username: str,
-    email_address: Optional[str] = None,
-    password: bool = False,
+    username: str, public_key: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
 ):
     """Create a new user account in the current workspace"""
     configuration = read_configuration()
 
+    try:
+        public_key: PublicKey = PublicKey(public_key, encoder=encoding.URLSafeBase64Encoder)
+    except ValueError:
+        typer.echo(f"Invalid public key: {public_key}")
+        raise typer.Abort()
+
     with client_from_config(configuration) as client:
-        secret = typer.prompt(f"Please enter a {'password' if password else 'key'}", hide_input=True)
-        secret_key: PrivateKey = (
-            PrivateKey(crypto.derive_password_key(identity=username, password=secret))
-            if password
-            else PrivateKey(secret, encoder=encoding.URLSafeBase64Encoder)
-        )
-        typer.echo(client.user.create(username=username, secret_key=secret_key, email_address=email_address))
+        client.user.create(username, public_key, email_address, permissions)
+
+
+@user_cli.command("generate")
+def user_generate_credential(username: str, password: bool = False):
+    """Generate the user's credential pair"""
+
+    if password:
+        password = typer.prompt("Please enter your password", hide_input=True)
+        secret_key: PrivateKey = PrivateKey(crypto.derive_password_key(identity=username, password=password))
+    else:
+        secret_key: PrivateKey = PrivateKey.generate()
+
+    typer.echo(
+        f"Public Key: {secret_key.public_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.GREEN
+    )
+    typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
 
 
 @user_cli.command("delete")

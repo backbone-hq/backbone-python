@@ -250,27 +250,32 @@ class _UserClient:
 
     def create(
         self,
-        username: Optional[str] = None,
-        secret_key: Optional[PrivateKey] = None,
+        username: str,
+        public_key: PublicKey,
         email_address: Optional[str] = None,
         permissions: List[Permission] = (),
     ) -> dict:
-        username = username or self.backbone._username
-        secret_key = secret_key or self.backbone._secret_key
-
         endpoint = self.backbone.endpoint("user")
         response = self.backbone.session.post(
             endpoint,
             json={
                 "name": username,
                 "email_address": email_address,
-                "public_key": secret_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                "public_key": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "permissions": [permission.value for permission in permissions],
             },
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()
         return response.json()
+
+    def create_self(self, email_address: Optional[str] = None, permissions: List[Permission] = ()):
+        return self.create(
+            username=self.backbone._username,
+            public_key=self.backbone._secret_key.public_key,
+            email_address=email_address,
+            permissions=permissions,
+        )
 
     def create_from_credentials(
         self, username: str, password: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
