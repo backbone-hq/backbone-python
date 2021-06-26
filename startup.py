@@ -26,4 +26,4 @@ if __name__ == "__main__":
         client.authenticate(permissions=[Permission.ROOT])
 
         # Create test user
-        client.user.create(TEST, secret_key=TEST_SECRET_KEY.public_key, email_address=TEST_EMAIL)
+        client.user.create(TEST, public_key=TEST_SECRET_KEY.public_key, email_address=TEST_EMAIL)

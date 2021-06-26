@@ -1,5 +1,5 @@
 import base64
-from typing import Iterable, Generator, List, Optional, Tuple
+from typing import Iterable, Generator, List, Optional, Tuple, Set
 
 import httpx
 from nacl import encoding
@@ -236,9 +236,9 @@ class _UserClient:
         for item in self.backbone.paginate(endpoint):
             yield item
 
-    def search(self, username: str) -> dict:
-        endpoint = self.backbone.endpoint("user", username)
-        response = self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
+    def search(self, usernames: Tuple[str]) -> dict:
+        endpoint = self.backbone.endpoint("users")
+        response = self.backbone.session.post(endpoint, auth=self.backbone.authenticator, json=usernames)
         response.raise_for_status()
         return response.json()
 
@@ -330,14 +330,6 @@ class _NamespaceClient:
         response.raise_for_status()
         return response.json().get("chain")
 
-    """
-    def layer(self, prefix: str) -> dict:
-        endpoint = self.backbone.endpoint("layer", prefix)
-        response = self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
-        return response.json()
-    """
-
     def search(self, prefix: str) -> Iterable[str]:
         endpoint = self.backbone.endpoint("namespaces", prefix)
         for item in self.backbone.paginate(endpoint):
@@ -423,31 +415,54 @@ class _NamespaceClient:
         response = self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
-    def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> None:
-        namespace_secret_key, namespace_grant = self.__unroll_chain(key)
+    def grant(self, key: str, *users: str, access: Set[GrantAccess] = None, strict: bool = True) -> None:
+        """
+        Grant users a certain level of access to a namespace
+        :param key: The namespace's key
+        :param users: A collection of users to grant the level of access to
+        :param access: The access package to grant. Grants equivalent access to the current user if `None`
+        :param strict: Throw if one of the specified users does not exist
+        """
 
+        resolved_users = self.backbone.user.search(users)
+        if strict and len(resolved_users) != len(users):
+            raise ValueError
+
+        namespace_secret_key, namespace_grant = self.__unroll_chain(key)
         endpoint = self.backbone.endpoint("grant", "namespace", key)
         response = self.backbone.session.post(
             endpoint,
             json=[
                 {
-                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                    "value": crypto.encrypt_grant(public_key, namespace_secret_key).decode(),
+                    "grantee_pk": user["public_key"],
+                    "value": crypto.encrypt_grant(
+                        PublicKey(user["public_key"], encoder=encoding.URLSafeBase64Encoder), namespace_secret_key
+                    ).decode(),
                     "access": [level.value for level in access] or namespace_grant["access"],
                 }
-                for public_key in users
+                for user in resolved_users
             ],
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()
 
-    def revoke(self, key: str, *users: PublicKey) -> None:
-        endpoint = self.backbone.endpoint("grant", "namespace", key)
+    def revoke(self, key: str, *users: str, strict: bool = True) -> None:
+        """
+        Revoke users access to a namespace
+        :param key: The namespace's key
+        :param users: A collection of users to grant the level of access to
+        :param strict: Throw if one of the specified users does not exist
+        """
 
+        resolved_users = self.backbone.user.search(users)
+        if strict and len(resolved_users) != len(users):
+            raise ValueError
+
+        endpoint = self.backbone.endpoint("grant", "namespace", key)
         response = self.backbone.session.request(
             "DELETE",
             endpoint,
-            json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
+            json=[user["public_key"] for user in resolved_users],
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()
@@ -519,8 +534,19 @@ class _EntryClient:
         response = self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
-    def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> dict:
-        # Get the user's grant
+    def grant(self, key: str, *users: str, access: Set[GrantAccess] = None, strict: bool = True) -> dict:
+        """
+        Grant users a certain level of access to a namespace
+        :param key: The namespace's key
+        :param users: A collection of users to grant the level of access to
+        :param access: The access package to grant. Grants equivalent access to the current user if `None`
+        :param strict: Throw if one of the specified users does not exist
+        """
+
+        resolved_users = self.backbone.user.search(users)
+        if strict and len(resolved_users) != len(users):
+            raise ValueError
+
         _, grant, grant_sk = self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
 
@@ -529,24 +555,36 @@ class _EntryClient:
             endpoint,
             json=[
                 {
-                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                    "value": crypto.create_entry_grant(entry_key, public_key).decode(),
+                    "grantee_pk": user["public_key"],
+                    "value": crypto.create_entry_grant(
+                        entry_key, PublicKey(user["public_key"], encoder=encoding.URLSafeBase64Encoder)
+                    ).decode(),
                     "access": [level.value for level in access] or grant["access"],
                 }
-                for public_key in users
+                for user in resolved_users
             ],
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()
         return response.json()
 
-    def revoke(self, key: str, *users: PublicKey) -> None:
-        endpoint = self.backbone.endpoint("grant", "entry", key)
+    def revoke(self, key: str, *users: str, strict: bool = True) -> None:
+        """
+        Revoke users access to an entry
+        :param key: The entry's key
+        :param users: A collection of users to grant the level of access to
+        :param strict: Throw if one of the specified users does not exist
+        """
 
+        resolved_users = self.backbone.user.search(users)
+        if strict and len(resolved_users) != len(users):
+            raise ValueError
+
+        endpoint = self.backbone.endpoint("grant", "entry", key)
         response = self.backbone.session.request(
             "DELETE",
             endpoint,
-            json=[public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode() for public_key in users],
+            json=[user["public_key"] for user in resolved_users],
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()
