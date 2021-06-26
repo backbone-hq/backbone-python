@@ -39,9 +39,7 @@ def user_get():
 
 @user_cli.command("create")
 def user_create(
-    username: str,
-    email_address: Optional[str] = None,
-    password: bool = False,
+    username: str, email_address: Optional[str] = None, password: bool = False,
 ):
     """Create a new user account in the current workspace"""
     configuration = read_configuration()

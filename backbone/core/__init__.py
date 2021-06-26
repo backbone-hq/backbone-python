@@ -325,13 +325,17 @@ class _NamespaceClient:
         response.raise_for_status()
         return response.json().get("chain")
 
-    """
-    async def layer(self, prefix: str) -> dict:
-        endpoint = self.backbone.endpoint("layer", prefix)
-        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
-        return response.json()
-    """
+    async def get_child_namespaces(self, prefix: str) -> AsyncIterable[dict]:
+        endpoint = self.backbone.endpoint("child", "namespace", prefix)
+
+        async for item in self.backbone.paginate(endpoint):
+            yield item
+
+    async def get_child_entries(self, prefix: str) -> AsyncIterable[dict]:
+        endpoint = self.backbone.endpoint("child", "entry", prefix)
+
+        async for item in self.backbone.paginate(endpoint):
+            yield item
 
     async def search(self, prefix: str) -> AsyncIterable[str]:
         endpoint = self.backbone.endpoint("namespaces", prefix)
@@ -343,10 +347,6 @@ class _NamespaceClient:
 
         # Generate new namespace keypair
         new_namespace_key: PrivateKey = PrivateKey.generate()
-
-        # Track any grant replacements
-        namespace_grant_replacements = {}
-        entry_grant_replacements = {}
 
         if isolated:
             # Grant access to the user directly
@@ -360,38 +360,43 @@ class _NamespaceClient:
 
             # Default grant access to the closest namespace's access
             grant_access = grant_access or chain[-1]["access"]
-
-            # TODO: Intermediate namespaces requires the layer API to exist
-            """
             closest_namespace_pk: str = grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
 
-            # Replace child namespace grants
-            for item in children["namespaces"]:
+            async for child_namespace in self.get_child_namespaces(key):
                 # Find the closest namespace's grant
-                child_public_key = PublicKey(item["public_key"], encoder=encoding.URLSafeBase64Encoder)
-                grant = next((grant for grant in item["grants"] if grant["grantee_pk"] == closest_namespace_pk), None)
-                grantee_sk: PrivateKey = PrivateKey(crypto.decrypt_grant(child_public_key, closest_namespace_sk, grant["value"]))
+                child_public_key = PublicKey(child_namespace["public_key"], encoder=encoding.URLSafeBase64Encoder)
 
-                key = item["key"]
-                namespace_grant_replacements[key] = {
+                grant = next(
+                    (grant for grant in child_namespace["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
+                )
+
+                grantee_sk: PrivateKey = PrivateKey(
+                    crypto.decrypt_grant(child_public_key, closest_namespace_sk, grant["value"])
+                )
+
+                prospective_grant = {
                     "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                    "value": crypto.encrypt_grant(new_namespace_key.public_key, grantee_sk).decode()
-                    "access": grant["access"]
+                    "value": crypto.encrypt_grant(new_namespace_key.public_key, grantee_sk).decode(),
+                    "access": grant["access"],
                 }
 
-            # Replace child entry grants
-            for item in children["entries"]:
+                await self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
+
+            async for child_entry in self.get_child_entries(key):
                 # Find the closest namespace's grant
-                grant = next((grant for grant in item["grants"] if grant["grantee_pk"] == closest_namespace_pk), None)
+                grant = next(
+                    (grant for grant in child_entry["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
+                )
+
                 entry_key = crypto.decrypt_entry_encryption_key(grant["value"], closest_namespace_sk)
 
-                key = item["key"]
-                entry_grant_replacements[key] = {
+                prospective_grant = {
                     "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                     "value": crypto.create_entry_grant(entry_key, new_namespace_key.public_key).decode(),
                     "access": grant["access"],
                 }
-            """
+
+                await self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
 
         # Grant access to the new namespace
         namespace_grant = crypto.encrypt_grant(grant_pk, new_namespace_key)
@@ -418,23 +423,25 @@ class _NamespaceClient:
         response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
+    async def grant_raw(self, key: str, *grants):
+        endpoint = self.backbone.endpoint("grant", "namespace", key)
+        response = await self.backbone.session.post(endpoint, json=grants, auth=self.backbone.authenticator)
+        response.raise_for_status()
+        return response.json()
+
     async def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> None:
         namespace_secret_key, namespace_grant = self.__unroll_chain(key)
 
-        endpoint = self.backbone.endpoint("grant", "namespace", key)
-        response = await self.backbone.session.post(
-            endpoint,
-            json=[
-                {
-                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                    "value": crypto.encrypt_grant(public_key, namespace_secret_key).decode(),
-                    "access": [level.value for level in access] or namespace_grant["access"],
-                }
-                for public_key in users
-            ],
-            auth=self.backbone.authenticator,
-        )
-        response.raise_for_status()
+        grants = [
+            {
+                "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                "value": crypto.encrypt_grant(public_key, namespace_secret_key).decode(),
+                "access": [level.value for level in access] or namespace_grant["access"],
+            }
+            for public_key in users
+        ]
+
+        return await self.grant_raw(key, *grants)
 
     async def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.backbone.endpoint("grant", "namespace", key)
@@ -514,26 +521,27 @@ class _EntryClient:
         response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
 
+    async def grant_raw(self, key: str, *grants):
+        endpoint = self.backbone.endpoint("grant", "entry", key)
+        response = await self.backbone.session.post(endpoint, json=grants, auth=self.backbone.authenticator)
+        response.raise_for_status()
+        return response.json()
+
     async def grant(self, key: str, *users: PublicKey, access: List[GrantAccess] = ()) -> dict:
         # Get the user's grant
         _, grant, grant_sk = self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
 
-        endpoint = self.backbone.endpoint("grant", "entry", key)
-        response = await self.backbone.session.post(
-            endpoint,
-            json=[
-                {
-                    "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
-                    "value": crypto.create_entry_grant(entry_key, public_key).decode(),
-                    "access": [level.value for level in access] or grant["access"],
-                }
-                for public_key in users
-            ],
-            auth=self.backbone.authenticator,
-        )
-        response.raise_for_status()
-        return response.json()
+        grants = [
+            {
+                "grantee_pk": public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                "value": crypto.create_entry_grant(entry_key, public_key).decode(),
+                "access": [level.value for level in access] or grant["access"],
+            }
+            for public_key in users
+        ]
+
+        return await self.grant_raw(key, *grants)
 
     async def revoke(self, key: str, *users: PublicKey) -> None:
         endpoint = self.backbone.endpoint("grant", "entry", key)
