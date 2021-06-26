@@ -45,7 +45,7 @@ async def create_user(client):
 
         # Create an account with the admin user client
         await client.user.create(
-            username=username, secret_key=secret_key, email_address=email_address, permissions=permissions
+            username=username, public_key=secret_key.public_key, email_address=email_address, permissions=permissions
         )
 
         return BackboneClient(workspace=WORKSPACE_NAME, username=username, secret_key=secret_key)
