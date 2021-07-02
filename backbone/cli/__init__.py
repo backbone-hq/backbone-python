@@ -26,7 +26,10 @@ backbone_cli.add_typer(user_cli, name="user")
 
 @backbone_cli.command("authenticate")
 def authenticate(username: str, workspace: Optional[str] = None, duration: int = 86_400, password: bool = False):
-    configuration = resolve_configuration(workspace=workspace, username=username,)
+    configuration = resolve_configuration(
+        workspace=workspace,
+        username=username,
+    )
 
     if configuration[Configuration.WORKSPACE] is None:
         configuration[Configuration.WORKSPACE] = typer.prompt("Please enter your workspace")
