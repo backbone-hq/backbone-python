@@ -1,8 +1,9 @@
-from functools import partial
 from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel, Field, conset, constr
 from enum import Enum
+from functools import partial
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, conset, constr
 
 # Primitive types
 safe_base64 = partial(constr, strip_whitespace=True, regex=r"[a-zA-Z0-9-_]+={0,3}")

@@ -1,10 +1,10 @@
-from typing import Optional, List
+from typing import List, Optional
 
 import typer
 
 from backbone import crypto
 from backbone.cli.utilities import client_from_config, read_configuration
-from backbone.sync import PrivateKey, PublicKey, Permission, encoding
+from backbone.sync import Permission, PrivateKey, PublicKey, encoding
 
 user_cli = typer.Typer()
 

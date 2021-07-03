@@ -4,12 +4,12 @@ import httpx
 from nacl.public import PrivateKey, PublicKey
 
 from backbone import crypto
-from backbone.models import Permission
-from backbone.core.token import TokenClient
-from backbone.core.user import UserClient
 from backbone.core.entry import EntryClient
 from backbone.core.namespace import NamespaceClient
+from backbone.core.token import TokenClient
+from backbone.core.user import UserClient
 from backbone.core.workspace import WorkspaceClient
+from backbone.models import Permission
 
 __version__ = 0
 
@@ -86,7 +86,11 @@ class BackboneClient:
 
     async def load_token(self, token: str):
         if self.authenticator:
-            await self.token.revoke(throw=False)
+            # Attempt to revoke the previous token on a best-effort basis
+            try:
+                await self.token.revoke()
+            except httpx.HTTPError:
+                pass
 
         self.authenticator = BackboneAuth(client=self, token=token, permissions=[], duration=None)
 

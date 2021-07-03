@@ -1,26 +1,25 @@
-from backbone.crypto import encrypt_grant, PrivateKey, encoding
-from backbone.models import GrantAccess
+from backbone.crypto import PrivateKey, encoding, encrypt_grant
+from backbone.models import GrantAccess, Workspace
 
 
 class WorkspaceClient:
+    endpoint = "workspace"
+
     def __init__(self, client):
         self.backbone = client
 
-    async def get(self) -> dict:
-        endpoint = self.backbone.endpoint("workspace")
-        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
+    async def get(self) -> Workspace:
+        response = await self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
-        return response.json()
+        return Workspace.parse_obj(response.json())
 
-    async def create(self, display_name: str, email_address: str) -> dict:
-        endpoint = self.backbone.endpoint("workspace")
-
+    async def create(self, display_name: str, email_address: str) -> Workspace:
         # Generate root namespace keypair
         namespace_key: PrivateKey = PrivateKey.generate()
         namespace_grant = encrypt_grant(self.backbone._secret_key.public_key, namespace_key)
 
         response = await self.backbone.session.post(
-            endpoint,
+            self.endpoint,
             json={
                 "workspace": {"name": self.backbone._workspace_name, "display_name": display_name},
                 "user": {
@@ -48,13 +47,12 @@ class WorkspaceClient:
         )
 
         response.raise_for_status()
-        return response.json()
+        return Workspace.parse_obj(response.json())
 
     async def delete(self, safety_check=True) -> None:
         if safety_check:
             print(f"WARNING: You're about to delete the workspace {self.backbone._workspace_name}")
             assert input("Please confirm by typing your workspace's name: ") == self.backbone._workspace_name
 
-        endpoint = self.backbone.endpoint("workspace")
-        response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
+        response = await self.backbone.session.delete(self.endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()

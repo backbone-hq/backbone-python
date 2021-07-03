@@ -1,6 +1,7 @@
-from typing import Tuple, List, Iterable, Set
-from backbone.crypto import PrivateKey, encoding, PublicKey
+from typing import Iterable, List, Set, Tuple
+
 from backbone import crypto
+from backbone.crypto import PrivateKey, PublicKey, encoding
 from backbone.models import GrantAccess
 
 
