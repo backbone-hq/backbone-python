@@ -69,6 +69,7 @@ class NamespaceClient:
             # Find all relevant children of the namespace
             chain = self.backbone.namespace.get_chain(key)
 
+            closest_namespace_key: str = chain[-1]["key"]
             closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
             grant_pk: PublicKey = closest_namespace_sk.public_key
 
@@ -76,7 +77,7 @@ class NamespaceClient:
             grant_access = grant_access or chain[-1]["access"]
             closest_namespace_pk: str = grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
 
-            for child_namespace in self.get_child_namespaces(key):
+            for child_namespace in self.get_child_namespaces(closest_namespace_key):
                 # Find the closest namespace's grant
                 child_public_key = PublicKey(child_namespace["public_key"], encoder=encoding.URLSafeBase64Encoder)
 
@@ -96,7 +97,7 @@ class NamespaceClient:
 
                 self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
 
-            for child_entry in self.get_child_entries(key):
+            for child_entry in self.get_child_entries(closest_namespace_key):
                 # Find the closest namespace's grant
                 grant = next(
                     (grant for grant in child_entry["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
