@@ -128,13 +128,20 @@ class NamespaceClient:
             closest_namespace_key: str = chain[-1]["key"]
             closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
             closest_namespace_pk: PublicKey = closest_namespace_sk.public_key
-            encoded_closest_namespace_pk: str = closest_namespace_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+            encoded_closest_namespace_pk: str = closest_namespace_pk.encode(
+                encoder=encoding.URLSafeBase64Encoder
+            ).decode()
 
             async for child_namespace in self.get_child_namespaces(key):
                 child_public_key = PublicKey(child_namespace["public_key"], encoder=encoding.URLSafeBase64Encoder)
 
                 grant = next(
-                    (grant for grant in child_namespace["grants"] if grant["grantee_pk"] == encoded_closest_namespace_pk), None
+                    (
+                        grant
+                        for grant in child_namespace["grants"]
+                        if grant["grantee_pk"] == encoded_closest_namespace_pk
+                    ),
+                    None,
                 )
 
                 grantee_sk: PrivateKey = PrivateKey(
