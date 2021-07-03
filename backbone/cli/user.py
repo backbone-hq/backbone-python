@@ -4,7 +4,8 @@ import typer
 
 from backbone import crypto
 from backbone.cli.utilities import client_from_config, read_configuration
-from backbone.sync import Permission, PrivateKey, PublicKey, encoding
+from backbone.sync import Permission, PrivateKey, PublicKey
+from backbone.crypto import encoding
 
 user_cli = typer.Typer()
 
@@ -16,7 +17,7 @@ def user_list():
 
     with client_from_config(configuration) as client:
         for user in client.user.get_all():
-            typer.echo(user)
+            typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
 
 
 @user_cli.command("search")
@@ -25,7 +26,8 @@ def user_search(username: str):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        typer.echo(client.user.search(username))
+        user = client.user.search(username)
+        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
 
 
 @user_cli.command("get")
@@ -34,7 +36,8 @@ def user_get():
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        typer.echo(client.user.get())
+        user = client.user.get()
+        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
 
 
 @user_cli.command("create")
@@ -51,7 +54,8 @@ def user_create(
         raise typer.Abort()
 
     with client_from_config(configuration) as client:
-        client.user.create(username, public_key, email_address, permissions)
+        user = client.user.create(username, public_key, email_address, permissions)
+        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
 
 
 @user_cli.command("generate")
@@ -65,7 +69,8 @@ def user_generate_credential(username: str, password: bool = False):
         secret_key: PrivateKey = PrivateKey.generate()
 
     typer.echo(
-        f"Public Key: {secret_key.public_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.GREEN
+        f"Public Key: {username} : {secret_key.public_key.encode(encoding.URLSafeBase64Encoder).decode()}",
+        color=typer.colors.GREEN,
     )
     typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
 

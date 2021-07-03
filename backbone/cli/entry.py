@@ -5,7 +5,7 @@ from nacl import encoding
 from nacl.public import PublicKey
 
 from backbone.cli.utilities import client_from_config, read_configuration
-from backbone.sync import GrantAccess
+from backbone.models import GrantAccess
 
 entry_cli = typer.Typer()
 
