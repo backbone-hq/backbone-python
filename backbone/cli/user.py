@@ -4,8 +4,8 @@ import typer
 
 from backbone import crypto
 from backbone.cli.utilities import client_from_config, read_configuration
-from backbone.sync import Permission, PrivateKey, PublicKey
 from backbone.crypto import encoding
+from backbone.sync import Permission, PrivateKey, PublicKey
 
 user_cli = typer.Typer()
 

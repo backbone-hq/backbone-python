@@ -6,12 +6,18 @@ from backbone.models import GrantAccess
 
 
 class NamespaceClient:
+    endpoint = "namespace"
+    bulk_endpoint = "namespaces"
+    chain_endpoint = "chain"
+    grant_endpoint = "grant/namespace"
+    child_namespace_endpoint = "child/namespace"
+    child_entry_endpoint = "child/entry"
+
     def __init__(self, client):
         self.backbone = client
 
     async def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
-        endpoint = self.backbone.endpoint("namespace", key)
-        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
+        response = await self.backbone.session.get(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         response.raise_for_status()
         result = response.json()
 
@@ -34,26 +40,20 @@ class NamespaceClient:
         return (await self.__unroll_chain(key))[0]
 
     async def get_chain(self, key: str) -> List[dict]:
-        endpoint = self.backbone.endpoint("chain", key)
-        response = await self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
+        response = await self.backbone.session.get(f"{self.chain_endpoint}/{key}", auth=self.backbone.authenticator)
         response.raise_for_status()
         return response.json().get("chain")
 
     async def get_child_namespaces(self, prefix: str) -> AsyncIterable[dict]:
-        endpoint = self.backbone.endpoint("child", "namespace", prefix)
-
-        async for item in self.backbone.paginate(endpoint):
+        async for item in self.backbone.paginate(f"{self.child_namespace_endpoint}/{prefix}"):
             yield item
 
     async def get_child_entries(self, prefix: str) -> AsyncIterable[dict]:
-        endpoint = self.backbone.endpoint("child", "entry", prefix)
-
-        async for item in self.backbone.paginate(endpoint):
+        async for item in self.backbone.paginate(f"{self.child_entry_endpoint}/{prefix}"):
             yield item
 
     async def search(self, prefix: str) -> AsyncIterable[str]:
-        endpoint = self.backbone.endpoint("namespaces", prefix)
-        async for item in self.backbone.paginate(endpoint):
+        async for item in self.backbone.paginate(f"{self.bulk_endpoint}/{prefix}"):
             yield item
 
     async def create(self, key: str, *, access: List[GrantAccess] = (), isolated: bool = False) -> dict:
@@ -69,20 +69,24 @@ class NamespaceClient:
             # Find all relevant children of the namespace
             chain = await self.backbone.namespace.get_chain(key)
 
-            closest_namespace_key: str = chain[-1]["key"]
             closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
             grant_pk: PublicKey = closest_namespace_sk.public_key
 
             # Default grant access to the closest namespace's access
             grant_access = grant_access or chain[-1]["access"]
-            closest_namespace_pk: str = grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
+            encoded_closest_namespace_pk: str = grant_pk.encode(encoder=encoding.URLSafeBase64Encoder).decode()
 
-            async for child_namespace in self.get_child_namespaces(closest_namespace_key):
+            async for child_namespace in self.get_child_namespaces(key):
                 # Find the closest namespace's grant
                 child_public_key = PublicKey(child_namespace["public_key"], encoder=encoding.URLSafeBase64Encoder)
 
                 grant = next(
-                    (grant for grant in child_namespace["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
+                    (
+                        grant
+                        for grant in child_namespace["grants"]
+                        if grant["grantee_pk"] == encoded_closest_namespace_pk
+                    ),
+                    None,
                 )
 
                 grantee_sk: PrivateKey = PrivateKey(
@@ -97,11 +101,27 @@ class NamespaceClient:
 
                 await self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
 
+            async for child_entry in self.get_child_entries(key):
+                # Find the closest namespace's grant
+                grant = next(
+                    (grant for grant in child_entry["grants"] if grant["grantee_pk"] == encoded_closest_namespace_pk),
+                    None,
+                )
+
+                entry_key = crypto.decrypt_entry_encryption_key(grant["value"], closest_namespace_sk)
+
+                prospective_grant = {
+                    "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
+                    "value": crypto.create_entry_grant(entry_key, new_namespace_key.public_key).decode(),
+                    "access": grant["access"],
+                }
+
+                await self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
+
         # Grant access to the new namespace
         namespace_grant = crypto.encrypt_grant(grant_pk, new_namespace_key)
-        endpoint = self.backbone.endpoint("namespace", key)
         response = await self.backbone.session.post(
-            endpoint,
+            f"{self.endpoint}/{key}",
             json={
                 "public_key": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 "grants": [
@@ -118,14 +138,11 @@ class NamespaceClient:
         return response.json()
 
     async def delete(self, key: str) -> None:
-        endpoint = self.backbone.endpoint("namespace", key)
-
         # Find closest parent namespace
-        chain = await self.backbone.namespace.get_chain(key)
+        chain = await self.backbone.namespace.get_chain(f"{self.endpoint}/{key}")
 
         # If a chain exists, the namespace is not isolated
         if chain:
-            closest_namespace_key: str = chain[-1]["key"]
             closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
             closest_namespace_pk: PublicKey = closest_namespace_sk.public_key
             encoded_closest_namespace_pk: str = closest_namespace_pk.encode(
@@ -156,7 +173,7 @@ class NamespaceClient:
 
                 await self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
 
-            async for child_entry in self.get_child_entries(closest_namespace_key):
+            async for child_entry in self.get_child_entries(key):
                 # Find the closest namespace's grant
                 grant = next(
                     (grant for grant in child_entry["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
@@ -172,12 +189,13 @@ class NamespaceClient:
 
                 await self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
 
-        response = await self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
+        response = await self.backbone.session.delete(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         response.raise_for_status()
 
     async def grant_raw(self, key: str, *grants):
-        endpoint = self.backbone.endpoint("grant", "namespace", key)
-        response = await self.backbone.session.post(endpoint, json=grants, auth=self.backbone.authenticator)
+        response = await self.backbone.session.post(
+            f"{self.grant_endpoint}/{key}", json=grants, auth=self.backbone.authenticator
+        )
         response.raise_for_status()
         return response.json()
 
@@ -222,10 +240,9 @@ class NamespaceClient:
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
-        endpoint = self.backbone.endpoint("grant", "namespace", key)
         response = await self.backbone.session.request(
             "DELETE",
-            endpoint,
+            f"{self.grant_endpoint}/{key}",
             json=[user["public_key"] for user in resolved_users],
             auth=self.backbone.authenticator,
         )

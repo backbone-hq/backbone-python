@@ -75,6 +75,8 @@ def test_entry_operations_in_segregated_namespace(client):
     with pytest.raises(HTTPError) as _exception:
         client.namespace.get(entry_key)
 
+    client.namespace.delete(namespace_key)
+
 
 @pytest.mark.sync
 def test_search(client):

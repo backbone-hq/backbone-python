@@ -2,6 +2,7 @@ import pytest
 from httpx import HTTPError
 
 from backbone.sync import Permission
+from backbone.models import User
 
 # TODO: find_user endpoint
 # TODO: user pagination endpoint
@@ -12,14 +13,14 @@ def test_user_read(client):
     # User read requires a valid token, but no specific permissions
     client.authenticate(permissions=[])
 
-    result = client.user.get()
-    assert set(result.keys()) == {"name", "email_address", "public_key", "permissions"}
+    user: User = client.user.get()
 
     # Assert properties defined remain intact
-    assert result["name"] == "admin"
-    assert result["email_address"] == "root@backbone.io"
-    assert result["public_key"] == "etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4="
-    assert result["permissions"] == [Permission.ROOT.value]
+    assert user.name == "admin"
+    assert user.email_address == "root@backbone.io"
+    # TODO: Return a PublicKey object
+    assert user.public_key == "etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4="
+    assert user.permissions == [Permission.ROOT]
 
 
 @pytest.mark.sync

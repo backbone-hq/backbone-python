@@ -20,12 +20,12 @@ class TokenClient:
     def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         response = self.backbone.session.post(
             self.endpoint,
-            json=TokenAuthenticationRequest(
+            content=TokenAuthenticationRequest(
                 workspace=self.backbone._workspace_name,
                 username=self.backbone._username,
                 permissions=permissions,
                 duration=duration,
-            ).dict(),
+            ).json(),
         )
         response.raise_for_status()
         return self.__decrypt_token_response(response)
@@ -33,7 +33,7 @@ class TokenClient:
     def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         response = self.backbone.session.patch(
             self.endpoint,
-            json=TokenDerivationRequest(permissions=permissions, duration=duration).dict(),
+            content=TokenDerivationRequest(permissions=permissions, duration=duration).json(),
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()

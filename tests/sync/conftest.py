@@ -1,3 +1,6 @@
+import asyncio
+import random
+import string
 from typing import List, Optional
 
 import pytest
@@ -14,8 +17,13 @@ ADMIN_EMAIL = "root@backbone.io"
 ADMIN_SK = PrivateKey("CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
 
+@pytest.fixture(scope="session")
+def event_loop():
+    return asyncio.get_event_loop()
+
+
 @pytest.mark.sync
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def client():
     client = BackboneClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
 

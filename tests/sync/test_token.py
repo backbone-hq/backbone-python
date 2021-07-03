@@ -6,6 +6,7 @@ from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 
 from backbone.sync import BackboneClient, Permission
+from backbone.models import Token, User
 
 
 @pytest.mark.sync
@@ -26,18 +27,15 @@ def test_client_authentication_explicit_permissions(client):
     client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
 
     # Get the existing token
-    token = client.token.get()
-    assert set(token.keys()) == {"hidden_token", "creation", "expiration", "permissions"}
-
-    # Check the lengths of hidden token
-    assert len(token["hidden_token"]) == 88
+    token: Token = client.token.get()
 
     # Check the formats of the timestamps; throws `ValueError` if not ISO8601 compliant
-    assert datetime.fromisoformat(token["creation"])
-    assert datetime.fromisoformat(token["expiration"])
+    assert isinstance(token.creation, datetime)
+    assert isinstance(token.expiration, datetime)
 
     # Validate that the requested permissions exist on the token
-    assert token["permissions"] == [Permission.STORE_READ.value, Permission.STORE_WRITE.value]
+    assert Permission.STORE_READ in token.permissions
+    assert Permission.STORE_WRITE in token.permissions
 
 
 @pytest.mark.sync
@@ -45,16 +43,16 @@ def test_client_authentication_minimally_scoped_token(client):
     client.authenticate(permissions=[])
 
     token = client.token.get()
-    assert token["permissions"] == []
+    assert len(token.permissions) == 0
 
 
 @pytest.mark.sync
 def test_client_authentication_implicit_max_permissions(client):
     client.authenticate()
 
-    user = client.user.get()
-    token = client.token.get()
-    assert token["permissions"] == user["permissions"] == [Permission.ROOT.value]
+    user: User = client.user.get()
+    token: Token = client.token.get()
+    assert token.permissions == user.permissions == [Permission.ROOT]
 
 
 @pytest.mark.sync

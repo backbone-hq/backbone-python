@@ -1,6 +1,8 @@
 import pytest
 from httpx import HTTPError
 
+from backbone.models import Workspace
+
 # Testing workspace creation/deletion is implicitly done by the client setup and teardown
 
 
@@ -9,12 +11,11 @@ def test_workspace_read(client):
     # User read requires a valid token, but no specific permissions
     client.authenticate(permissions=[])
 
-    result = client.workspace.get()
-    assert set(result.keys()) == {"name", "display_name"}
+    workspace: Workspace = client.workspace.get()
 
     # Assert properties defined remain intact
-    assert result["name"] == "backbone"
-    assert result["display_name"] == "backbone-display"
+    assert workspace.name == "backbone"
+    assert workspace.display_name == "backbone-display"
 
 
 @pytest.mark.sync

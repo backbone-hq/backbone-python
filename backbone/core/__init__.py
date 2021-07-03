@@ -32,8 +32,8 @@ class BackboneAuth(httpx.Auth):
 
 
 class BackboneClient:
-    _base_url = f"http://localhost:8000/v{__version__}"
-    # _base_url = f"https://backbone.dev/v{__version__}"
+    _base_url = f"http://localhost:8000/v{__version__}/"
+    # _base_url = f"https://backbone.dev/v{__version__}/"
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
         # Backbone parameters
@@ -53,17 +53,17 @@ class BackboneClient:
         self.__session: Optional[httpx.AsyncClient] = None
         self.authenticator: Optional[BackboneAuth] = None
 
+    def __init_session(self):
+        if not self.__session:
+            self.__session = httpx.AsyncClient(base_url=self._base_url)
+
     @property
     def session(self) -> httpx.AsyncClient:
-        if not self.__session:
-            self.__session = httpx.AsyncClient()
-
+        self.__init_session()
         return self.__session
 
     async def __aenter__(self):
-        if not self.__session:
-            self.__session = httpx.AsyncClient()
-
+        self.__init_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -79,10 +79,6 @@ class BackboneClient:
     def from_credentials(cls, workspace: str, username: str, password: str) -> "BackboneClient":
         derived_private_key = crypto.derive_password_key(identity=username, password=password)
         return cls(workspace=workspace, username=username, secret_key=PrivateKey(derived_private_key))
-
-    @classmethod
-    def endpoint(cls, *parts: str) -> str:
-        return f"{cls._base_url}/{'/'.join(parts)}"
 
     async def load_token(self, token: str):
         if self.authenticator:

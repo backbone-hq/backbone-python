@@ -36,12 +36,12 @@ class UserClient:
     ) -> User:
         response = await self.backbone.session.post(
             self.endpoint,
-            json=User(
+            content=User(
                 name=username,
                 email_address=email_address,
                 public_key=public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 permissions=permissions,
-            ).dict(),
+            ).json(),
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()

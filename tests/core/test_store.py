@@ -75,6 +75,8 @@ async def test_entry_operations_in_segregated_namespace(client):
     with pytest.raises(HTTPError) as _exception:
         await client.namespace.get(entry_key)
 
+    await client.namespace.delete(namespace_key)
+
 
 @pytest.mark.asyncio
 async def test_search(client):

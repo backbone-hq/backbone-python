@@ -6,12 +6,16 @@ from backbone.models import GrantAccess
 
 
 class EntryClient:
+    endpoint = "entry"
+    bulk_endpoint = "entries"
+    chain_endpoint = "chain"
+    grant_endpoint = "grant/entry"
+
     def __init__(self, client):
         self.backbone = client
 
     def __unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
-        endpoint = self.backbone.endpoint("entry", key)
-        response = self.backbone.session.get(endpoint, auth=self.backbone.authenticator)
+        response = self.backbone.session.get(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         response.raise_for_status()
         result = response.json()
 
@@ -36,8 +40,7 @@ class EntryClient:
         return crypto.decrypt_entry(ciphertext, grant["value"].encode(), grant_sk).decode()
 
     def search(self, prefix: str) -> Iterable[str]:
-        endpoint = self.backbone.endpoint("entries", prefix)
-        for item in self.backbone.paginate(endpoint):
+        for item in self.backbone.paginate(f"{self.bulk_endpoint}/{prefix}"):
             yield item
 
     def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
@@ -46,9 +49,8 @@ class EntryClient:
         namespace_public_key = PublicKey(closest_namespace_grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
         ciphertext, grants = crypto.encrypt_entry(value, namespace_public_key)
 
-        endpoint = self.backbone.endpoint("entry", key)
         response = self.backbone.session.post(
-            endpoint,
+            f"{self.endpoint}/{key}",
             json={
                 "value": ciphertext.decode(),
                 "grants": [
@@ -67,13 +69,13 @@ class EntryClient:
         return response.json()
 
     def delete(self, key: str) -> None:
-        endpoint = self.backbone.endpoint("entry", key)
-        response = self.backbone.session.delete(endpoint, auth=self.backbone.authenticator)
+        response = self.backbone.session.delete(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         response.raise_for_status()
 
     def grant_raw(self, key: str, *grants):
-        endpoint = self.backbone.endpoint("grant", "entry", key)
-        response = self.backbone.session.post(endpoint, json=grants, auth=self.backbone.authenticator)
+        response = self.backbone.session.post(
+            f"{self.grant_endpoint}/{key}", json=grants, auth=self.backbone.authenticator
+        )
         response.raise_for_status()
         return response.json()
 
@@ -118,10 +120,9 @@ class EntryClient:
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
-        endpoint = self.backbone.endpoint("grant", "entry", key)
         response = self.backbone.session.request(
             "DELETE",
-            endpoint,
+            f"{self.grant_endpoint}/{key}",
             json=[user["public_key"] for user in resolved_users],
             auth=self.backbone.authenticator,
         )
