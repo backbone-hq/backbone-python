@@ -8,9 +8,14 @@ from backbone.models import Permission, Token, TokenAuthenticationRequest, Token
 
 class TokenClient:
     endpoint = "token"
+    bulk_endpoint = "tokens"
 
     def __init__(self, client):
         self.backbone = client
+
+    async def get_all(self):
+        async for item in self.backbone.paginate(self.bulk_endpoint):
+            yield Token.parse_obj(item)
 
     async def get(self) -> Token:
         response = await self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)
