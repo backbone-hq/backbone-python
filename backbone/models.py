@@ -19,7 +19,7 @@ store_key = partial(constr, strip_whitespace=True, min_length=1, max_length=256)
 
 
 class Permission(Enum):
-    """Mechanism to control access to API endpoints"""
+    """Access control for API endpoints"""
 
     # Root permissions
     ROOT = "root"
@@ -33,6 +33,8 @@ class Permission(Enum):
 
 
 class GrantAccess(Enum):
+    """Access control within the store"""
+
     READ = "read"
     WRITE = "write"
     DELETE = "delete"
@@ -132,6 +134,8 @@ class Action(Enum):
     USER_DELETE = "user_delete"
 
     # Token
+    TOKENS_GET = "tokens_get"
+    TOKEN_GET = "token_get"
     TOKEN_AUTHENTICATE = "token_authenticate"
     TOKEN_DERIVE = "token_derive"
     TOKEN_REVOKE = "token_revoke"
