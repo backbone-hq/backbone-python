@@ -51,3 +51,5 @@ def deauthenticate():
 
     with client_from_config(configuration) as client:
         client.deauthenticate()
+
+    write_configuration({})
