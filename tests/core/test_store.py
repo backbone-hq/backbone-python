@@ -7,6 +7,7 @@ from backbone.core import Permission
 
 @pytest.mark.asyncio
 async def test_entry_creation_read_deletion(client):
+    """Entries can be created, read and deleted"""
     await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
     key = "entry-key"
     value = "entry-value"
@@ -34,6 +35,7 @@ async def test_entry_creation_read_deletion(client):
 
 @pytest.mark.asyncio
 async def test_namespace_creation_read_deletion(client):
+    """Namespaces can be created, read and deleted"""
     await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
     key = "namespace-key"
 
@@ -60,7 +62,8 @@ async def test_namespace_creation_read_deletion(client):
 
 
 @pytest.mark.asyncio
-async def test_entry_operations_in_segregated_namespace(client):
+async def test_entry_operations_in_isolated_namespace(client):
+    """Entries can be created, read and deleted within an isolated namespace"""
     await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
 
     namespace_key = "key"
@@ -72,26 +75,25 @@ async def test_entry_operations_in_segregated_namespace(client):
     assert entry_value == await client.entry.get(entry_key)
     await client.entry.delete(entry_key)
 
-    with pytest.raises(HTTPError) as _exception:
-        await client.namespace.get(entry_key)
-
+    # Cleanup
     await client.namespace.delete(namespace_key)
 
 
 @pytest.mark.asyncio
 async def test_search(client):
+    """Entries and Namespace searches return the correct results"""
     await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
 
-    await client.namespace.create("key")
-    await client.namespace.create("key-1")
-    await client.namespace.create("key-2", isolated=True)
+    namespace_keys = ["key", "key-1", "key-2"]
+    for key in namespace_keys:
+        await client.namespace.create(key)
 
-    await client.entry.set("key-x", "dummy")
-    await client.entry.set("key-1-1", "dummy")
-    await client.entry.set("key-2-1", "dummy")
+    entry_keys = [f"{key}++" for key in namespace_keys]
+    for key in entry_keys:
+        await client.entry.set(key, "dummy")
 
     namespace_results = [item async for item in client.namespace.search("key")]
-    assert len(namespace_results) == 3
+    assert namespace_results == namespace_keys
 
     entry_results = [item async for item in client.entry.search("key")]
-    assert len(entry_results) == 3
+    assert entry_results == entry_keys
