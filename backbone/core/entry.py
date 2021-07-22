@@ -26,6 +26,9 @@ class EntryClient:
         current_namespace_pk = closest_namespace_sk.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
         grants = [grant for grant in result["grants"] if grant["grantee_pk"] == current_namespace_pk]
 
+        if not grants:
+            raise ValueError
+
         # The user should only have a single grant (with at least READ access)
         user_grant = grants[0]
         return result["value"], user_grant, closest_namespace_sk
@@ -63,6 +66,7 @@ class EntryClient:
                 ],
             },
             auth=self.backbone.authenticator,
+            timeout=None
         )
 
         response.raise_for_status()
@@ -92,14 +96,14 @@ class EntryClient:
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
-        _, grant, grant_sk = self.__unroll_chain(key)
+        _, grant, grant_sk = await self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
 
         grants = [
             {
-                "grantee_pk": user["public_key"],
+                "grantee_pk": user.public_key,
                 "value": crypto.create_entry_grant(
-                    entry_key, PublicKey(user["public_key"], encoder=encoding.URLSafeBase64Encoder)
+                    entry_key, PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder)
                 ).decode(),
                 "access": [level.value for level in access] or grant["access"],
             }

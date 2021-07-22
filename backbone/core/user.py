@@ -15,12 +15,12 @@ class UserClient:
         async for item in self.backbone.paginate(self.bulk_endpoint):
             yield User.parse_obj(item)
 
-    async def search(self, usernames: Tuple[str]) -> User:
+    async def search(self, usernames: Tuple[str]) -> Tuple[User]:
         response = await self.backbone.session.post(
             self.bulk_endpoint, auth=self.backbone.authenticator, json=usernames
         )
         response.raise_for_status()
-        return User.parse_obj(response.json())
+        return tuple(User.parse_obj(user) for user in response.json())
 
     async def get(self) -> User:
         response = await self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)

@@ -217,9 +217,9 @@ class NamespaceClient:
 
         grants = [
             {
-                "grantee_pk": user["public_key"],
+                "grantee_pk": user.public_key,
                 "value": crypto.encrypt_grant(
-                    PublicKey(user["public_key"], encoder=encoding.URLSafeBase64Encoder), namespace_secret_key
+                    PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder), namespace_secret_key
                 ).decode(),
                 "access": [level.value for level in access] or namespace_grant["access"],
             }

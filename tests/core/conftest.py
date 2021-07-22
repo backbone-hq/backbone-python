@@ -46,12 +46,12 @@ async def create_user(client):
     user_clients = []
 
     @pytest.mark.asyncio
-    async def _create_user(username: str, permissions: List[Permission], email_address: Optional[str] = None):
+    async def _create_user(username: str, permissions: List[Permission]):
         secret_key = PrivateKey.generate()
 
         # Create an account with the admin user client
         await client.user.create(
-            username=username, public_key=secret_key.public_key, email_address=email_address, permissions=permissions
+            username=username, public_key=secret_key.public_key, email_address=None, permissions=permissions
         )
 
         return BackboneClient(workspace=WORKSPACE_NAME, username=username, secret_key=secret_key)

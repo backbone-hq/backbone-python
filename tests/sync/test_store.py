@@ -2,11 +2,12 @@ import pytest
 from httpx import HTTPError
 from nacl import encoding
 
-from backbone.sync import Permission
+from backbone.models import Permission, GrantAccess
 
 
 @pytest.mark.sync
 def test_entry_creation_read_deletion(client):
+    """Entries can be created, read and deleted"""
     client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
     key = "entry-key"
     value = "entry-value"
@@ -34,6 +35,7 @@ def test_entry_creation_read_deletion(client):
 
 @pytest.mark.sync
 def test_namespace_creation_read_deletion(client):
+    """Namespaces can be created, read and deleted"""
     client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
     key = "namespace-key"
 
@@ -60,7 +62,8 @@ def test_namespace_creation_read_deletion(client):
 
 
 @pytest.mark.sync
-def test_entry_operations_in_segregated_namespace(client):
+def test_entry_operations_in_isolated_namespace(client):
+    """Entries can be created, read and deleted within an isolated namespace"""
     client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
 
     namespace_key = "key"
@@ -72,26 +75,79 @@ def test_entry_operations_in_segregated_namespace(client):
     assert entry_value == client.entry.get(entry_key)
     client.entry.delete(entry_key)
 
-    with pytest.raises(HTTPError) as _exception:
-        client.namespace.get(entry_key)
-
+    # Cleanup
     client.namespace.delete(namespace_key)
 
 
 @pytest.mark.sync
 def test_search(client):
+    """Entries and Namespace searches return the correct results"""
     client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
 
-    client.namespace.create("key")
-    client.namespace.create("key-1")
-    client.namespace.create("key-2", isolated=True)
+    namespace_keys = ["key", "key-1", "key-2"]
+    for key in namespace_keys:
+        client.namespace.create(key)
 
-    client.entry.set("key-x", "dummy")
-    client.entry.set("key-1-1", "dummy")
-    client.entry.set("key-2-1", "dummy")
+    entry_keys = [f"{key}++" for key in namespace_keys]
+    for key in entry_keys:
+        client.entry.set(key, "dummy")
 
     namespace_results = [item for item in client.namespace.search("key")]
-    assert len(namespace_results) == 3
+    assert namespace_results == namespace_keys
 
     entry_results = [item for item in client.entry.search("key")]
-    assert len(entry_results) == 3
+    assert entry_results == entry_keys
+
+
+@pytest.mark.sync
+def test_entry_read_grant_access(client, create_user):
+    """READ grant access on an entry allows the entry to be read and decrypted"""
+    client.authenticate()
+
+    test_client = create_user("test", permissions=[Permission.STORE_READ])
+    test_client.authenticate()
+
+    client.entry.set("key", "value")
+
+    with pytest.raises(ValueError) as _exception:
+        assert test_client.entry.get("key")
+
+    client.entry.grant("key", "test", access=[GrantAccess.READ])
+    assert test_client.entry.get("key") == "value"
+
+
+@pytest.mark.sync
+def test_entry_write_grant_access(client, create_user):
+    """WRITE grant access on an entry allows the entry to be overwritten"""
+    client.authenticate()
+
+    test_client = create_user("test", permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    test_client.authenticate()
+
+    client.namespace.create("key")
+    client.entry.set("key-001", "value")
+
+    with pytest.raises(HTTPError) as _exception:
+        assert test_client.entry.set("key-001", "new-value")
+
+    # User must have read access to the namespace and write access to the entry
+    client.namespace.grant("key", "test", access=[GrantAccess.READ])
+    client.entry.grant("key-001", "test", access=[GrantAccess.WRITE])
+    assert test_client.entry.set("key-001", "new-value")
+
+
+@pytest.mark.sync
+def test_entry_delete_grant_access(client, create_user):
+    """DELETE grant access on an entry allows the entry to be deleted"""
+    client.authenticate()
+
+    test_client = create_user("test", permissions=[Permission.STORE_READ])
+    test_client.authenticate()
+
+    client.entry.set("key", "value")
+
+    with pytest.raises(HTTPError) as _exception:
+        assert test_client.entry.delete("key")
+
+    client.entry.grant("key", "test", access=[GrantAccess.DELETE])
+    assert test_client.entry.delete("key", "new")

@@ -2,7 +2,7 @@ import pytest
 from httpx import HTTPError
 from nacl import encoding
 
-from backbone.core import Permission
+from backbone.models import Permission, GrantAccess
 
 
 @pytest.mark.asyncio
@@ -97,3 +97,57 @@ async def test_search(client):
 
     entry_results = [item async for item in client.entry.search("key")]
     assert entry_results == entry_keys
+
+
+@pytest.mark.asyncio
+async def test_entry_read_grant_access(client, create_user):
+    """READ grant access on an entry allows the entry to be read and decrypted"""
+    await client.authenticate()
+
+    test_client = await create_user("test", permissions=[Permission.STORE_READ])
+    await test_client.authenticate()
+
+    await client.entry.set("key", "value")
+
+    with pytest.raises(ValueError) as _exception:
+        assert await test_client.entry.get("key")
+
+    await client.entry.grant("key", "test", access=[GrantAccess.READ])
+    assert await test_client.entry.get("key") == "value"
+
+
+@pytest.mark.asyncio
+async def test_entry_write_grant_access(client, create_user):
+    """WRITE grant access on an entry allows the entry to be overwritten"""
+    await client.authenticate()
+
+    test_client = await create_user("test", permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    await test_client.authenticate()
+
+    await client.namespace.create("key")
+    await client.entry.set("key-001", "value")
+
+    with pytest.raises(HTTPError) as _exception:
+        assert await test_client.entry.set("key-001", "new-value")
+
+    # User must have read access to the namespace and write access to the entry
+    await client.namespace.grant("key", "test", access=[GrantAccess.READ])
+    await client.entry.grant("key-001", "test", access=[GrantAccess.WRITE])
+    assert await test_client.entry.set("key-001", "new-value")
+
+
+@pytest.mark.asyncio
+async def test_entry_delete_grant_access(client, create_user):
+    """DELETE grant access on an entry allows the entry to be deleted"""
+    await client.authenticate()
+
+    test_client = await create_user("test", permissions=[Permission.STORE_READ])
+    await test_client.authenticate()
+
+    await client.entry.set("key", "value")
+
+    with pytest.raises(HTTPError) as _exception:
+        assert await test_client.entry.delete("key")
+
+    await client.entry.grant("key", "test", access=[GrantAccess.DELETE])
+    assert await test_client.entry.delete("key", "new")
