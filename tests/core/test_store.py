@@ -155,23 +155,31 @@ async def test_entry_write_grant_access(client, create_user):
     await test_client.authenticate()
 
     # Define the randomized variables
-    entry_key = r_str(8)
+    namespace_key = r_str(8)
+    direct_entry_key = r_str(8)
+    indirect_entry_key = r_str(8, prefix=namespace_key)
     value = r_str(16)
     new_value = r_str(16)
 
-    # Create the entry
-    await client.entry.set(entry_key, value)
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key)
+    await client.entry.set(direct_entry_key, value, access=[GrantAccess.WRITE])
+    await client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
 
     # Test account fails to overwrite the entry
     with pytest.raises(HTTPError) as _exception:
-        await test_client.entry.set(entry_key, new_value)
+        await test_client.entry.set(direct_entry_key, new_value)
 
     # Test account can overwrite the entry when granted write access
-    await client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
-    await test_client.entry.set(entry_key, new_value)
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    await test_client.entry.set(indirect_entry_key, new_value)
 
-    # The original user should retain access after the overwrite
-    await client.entry.set(entry_key, new_value)
+    await client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.WRITE])
+    await test_client.entry.set(direct_entry_key, new_value)
+
+    # The original user must retain access after the overwrite
+    await client.entry.set(indirect_entry_key, new_value)
+    await client.entry.set(direct_entry_key, new_value)
 
 
 @pytest.mark.asyncio
@@ -186,26 +194,29 @@ async def test_entry_delete_grant_access(client, create_user):
 
     # Define the randomized variables
     namespace_key = r_str(8)
-    entry_key = r_str(8)
+    direct_entry_key = r_str(8)
+    indirect_entry_key = r_str(8, prefix=namespace_key)
     value = r_str(16)
 
     # Create the namespace & entry
     await client.namespace.create(namespace_key)
-    await client.entry.set(entry_key, value)
+    await client.entry.set(direct_entry_key, value, access=[GrantAccess.DELETE])
+    await client.entry.set(indirect_entry_key, value, access=[GrantAccess.DELETE])
 
     # Test account fails to delete the namespace & entry
     with pytest.raises(HTTPError) as _exception:
         await test_client.namespace.delete(namespace_key)
 
     with pytest.raises(HTTPError) as _exception:
-        await test_client.entry.delete(entry_key)
+        await test_client.entry.delete(direct_entry_key)
 
     # Test account can delete the namespace & entry when granted delete access
     await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.DELETE])
+    await test_client.entry.delete(indirect_entry_key)
     await test_client.namespace.delete(namespace_key)
 
-    await client.entry.grant(entry_key, test_user, access=[GrantAccess.DELETE])
-    await test_client.entry.delete(entry_key)
+    await client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.DELETE])
+    await test_client.entry.delete(direct_entry_key)
 
 
 @pytest.mark.asyncio

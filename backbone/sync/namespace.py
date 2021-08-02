@@ -139,7 +139,7 @@ class NamespaceClient:
 
     def delete(self, key: str) -> None:
         # Find closest parent namespace
-        chain = self.backbone.namespace.get_chain(f"{self.endpoint}/{key}")
+        chain = self.backbone.namespace.get_chain(key)
 
         # If a chain exists, the namespace is not isolated
         if chain:

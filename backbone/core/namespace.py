@@ -139,7 +139,7 @@ class NamespaceClient:
 
     async def delete(self, key: str) -> None:
         # Find closest parent namespace
-        chain = await self.backbone.namespace.get_chain(f"{self.endpoint}/{key}")
+        chain = await self.backbone.namespace.get_chain(key)
 
         # If a chain exists, the namespace is not isolated
         if chain:
