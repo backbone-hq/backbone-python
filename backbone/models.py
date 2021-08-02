@@ -16,6 +16,7 @@ public_key = partial(safe_base64, min_length=44, max_length=44)
 
 # Store primitives
 store_key = partial(constr, strip_whitespace=True, min_length=1, max_length=256)
+root_store_key = partial(store_key, min_length=0)
 
 
 class Permission(Enum):
