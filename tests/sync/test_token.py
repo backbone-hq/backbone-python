@@ -24,7 +24,7 @@ def test_fake_token(client, create_user):
 @pytest.mark.sync
 def test_client_authentication_explicit_permissions(client):
     # Authenticate
-    client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    client.authenticate(permissions=[Permission.STORE_USE])
 
     # Get the existing token
     token: Token = client.token.get()
@@ -85,10 +85,10 @@ def test_token_derivation_scope_reduction(client):
 
 @pytest.mark.sync
 def test_token_derivation_privilege_escalation_fails(client):
-    client.authenticate(permissions=[Permission.STORE_READ], duration=86_400)
+    client.authenticate(permissions=[Permission.STORE_USE], duration=86_400)
 
     with pytest.raises(HTTPError) as _exception:
-        client.token.derive(permissions=[Permission.STORE_READ, Permission.STORE_WRITE], duration=86_300)
+        client.token.derive(permissions=[Permission.STORE_USE, Permission.STORE_SHARE], duration=86_300)
 
 
 @pytest.mark.sync

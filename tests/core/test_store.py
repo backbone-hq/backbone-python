@@ -14,7 +14,7 @@ def r_str(length: int, *, prefix: str = '') -> str:
 @pytest.mark.asyncio
 async def test_entry_creation_read_deletion(client):
     """Entries can be created, read and deleted"""
-    await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    await client.authenticate(permissions=[Permission.STORE_USE])
     key = r_str(8)
     value = r_str(16)
 
@@ -42,7 +42,7 @@ async def test_entry_creation_read_deletion(client):
 @pytest.mark.asyncio
 async def test_namespace_creation_read_deletion(client):
     """Namespaces can be created, read and deleted"""
-    await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    await client.authenticate(permissions=[Permission.STORE_USE])
     key = r_str(8)
 
     # Create the namespace
@@ -70,7 +70,7 @@ async def test_namespace_creation_read_deletion(client):
 @pytest.mark.asyncio
 async def test_entry_operations_in_isolated_namespace(client):
     """Entries can be created, read and deleted within an isolated namespace"""
-    await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    await client.authenticate(permissions=[Permission.STORE_USE])
 
     namespace_key = r_str(8)
     entry_key = r_str(8, prefix=namespace_key)
@@ -88,7 +88,7 @@ async def test_entry_operations_in_isolated_namespace(client):
 @pytest.mark.asyncio
 async def test_search(client):
     """Entries and Namespace searches return the correct results"""
-    await client.authenticate(permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    await client.authenticate(permissions=[Permission.STORE_USE])
 
     common_prefix = r_str(8)
     namespace_keys = [r_str(8, prefix=common_prefix) for _ in range(3)]
@@ -107,53 +107,64 @@ async def test_search(client):
 
 
 @pytest.mark.asyncio
-async def test_entry_read_grant_access(client, create_user):
-    """READ grant access on an entry allows the entry to be read and decrypted"""
+async def test_read_grant_access(client, create_user):
+    """Direct READ grant access allows the entry/namespace to be read and decrypted"""
     await client.authenticate()
 
+    # Create the test user
     test_user = r_str(8)
     test_client = await create_user(test_user, permissions=[Permission.STORE_READ])
     await test_client.authenticate()
 
-    key = r_str(8)
+    # Define the randomized variables
+    namespace_key = r_str(8)
+    entry_key = r_str(8)
     value = r_str(16)
 
-    # Create the entry
-    await client.entry.set(key, value)
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key)
+    await client.entry.set(entry_key, value)
+
+    # Test account fails to find the namespace
+    with pytest.raises(HTTPError) as _exception:
+        await test_client.namespace.get(namespace_key)
 
     # Test account fails to find the entry
     with pytest.raises(HTTPError) as _exception:
-        assert await test_client.entry.get(key)
+        await test_client.entry.get(entry_key)
 
     # Granting the test account read access and reading works as expected
-    await client.entry.grant(key, test_user, access=[GrantAccess.READ])
-    assert await test_client.entry.get(key) == value
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.READ])
+    assert await test_client.namespace.get(namespace_key)
+
+    await client.entry.grant(entry_key, test_user, access=[GrantAccess.READ])
+    assert await test_client.entry.get(entry_key) == value
 
 
 @pytest.mark.asyncio
 async def test_entry_write_grant_access(client, create_user):
-    """WRITE grant access on an entry allows the entry to be overwritten"""
+    """Direct WRITE grant access allows the entry/namespace to be overwritten"""
     await client.authenticate()
 
     test_user = r_str(8)
-    test_client = await create_user(test_user, permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
     await test_client.authenticate()
 
-    key = r_str(8)
+    entry_key = r_str(8)
     value = r_str(16)
     new_value = r_str(16)
 
-    await client.entry.set(key, value)
+    await client.entry.set(entry_key, value)
 
     with pytest.raises(HTTPError) as _exception:
-        await test_client.entry.set(key, new_value)
+        await test_client.entry.set(entry_key, new_value)
 
     # User must have read access to the namespace and write access to the entry
-    await client.entry.grant(key, test_user, access=[GrantAccess.WRITE])
-    await test_client.entry.set(key, new_value)
+    await client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
+    await test_client.entry.set(entry_key, new_value)
 
     # The original user should retain access after an overwrite
-    # await client.entry.set(key, new_value)
+    await client.entry.set(entry_key, new_value)
 
 
 @pytest.mark.asyncio
@@ -162,7 +173,7 @@ async def test_entry_delete_grant_access(client, create_user):
     await client.authenticate()
 
     test_user = r_str(8)
-    test_client = await create_user(test_user, permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
     await test_client.authenticate()
 
     key = r_str(8)
@@ -182,7 +193,7 @@ async def test_entry_union_access(client, create_user):
     """Multiple access types grant all of their respective access"""
     await client.authenticate()
 
-    test_client = await create_user("test", permissions=[Permission.STORE_READ, Permission.STORE_WRITE])
+    test_client = await create_user("test", permissions=[Permission.STORE_USE])
     await test_client.authenticate()
 
     await client.entry.set("key", "value")

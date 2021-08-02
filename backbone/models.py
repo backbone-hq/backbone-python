@@ -28,8 +28,8 @@ class Permission(Enum):
     USER_MANAGE = "user:manage"
 
     # Store permissions
-    STORE_READ = "store:read"
-    STORE_WRITE = "store:write"
+    STORE_USE = "store:use"
+    STORE_SHARE = "store:share"
 
 
 class GrantAccess(Enum):
