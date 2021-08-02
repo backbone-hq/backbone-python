@@ -125,11 +125,10 @@ async def test_read_grant_access(client, create_user):
     await client.namespace.create(namespace_key)
     await client.entry.set(entry_key, value)
 
-    # Test account fails to find the namespace
+    # Test account fails to find the namespace & entry
     with pytest.raises(HTTPError) as _exception:
         await test_client.namespace.get(namespace_key)
 
-    # Test account fails to find the entry
     with pytest.raises(HTTPError) as _exception:
         await test_client.entry.get(entry_key)
 
@@ -146,24 +145,28 @@ async def test_entry_write_grant_access(client, create_user):
     """Direct WRITE grant access allows the entry/namespace to be overwritten"""
     await client.authenticate()
 
+    # Create the test user
     test_user = r_str(8)
     test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
     await test_client.authenticate()
 
+    # Define the randomized variables
     entry_key = r_str(8)
     value = r_str(16)
     new_value = r_str(16)
 
+    # Create the entry
     await client.entry.set(entry_key, value)
 
+    # Test account fails to overwrite the entry
     with pytest.raises(HTTPError) as _exception:
         await test_client.entry.set(entry_key, new_value)
 
-    # User must have read access to the namespace and write access to the entry
+    # Test account can overwrite the entry when granted write access
     await client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
     await test_client.entry.set(entry_key, new_value)
 
-    # The original user should retain access after an overwrite
+    # The original user should retain access after the overwrite
     await client.entry.set(entry_key, new_value)
 
 
@@ -172,20 +175,33 @@ async def test_entry_delete_grant_access(client, create_user):
     """DELETE grant access on an entry allows the entry to be deleted"""
     await client.authenticate()
 
+    # Create the test user
     test_user = r_str(8)
     test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
     await test_client.authenticate()
 
-    key = r_str(8)
+    # Define the randomized variables
+    namespace_key = r_str(8)
+    entry_key = r_str(8)
     value = r_str(16)
 
-    await client.entry.set(key, value)
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key)
+    await client.entry.set(entry_key, value)
+
+    # Test account fails to delete the namespace & entry
+    with pytest.raises(HTTPError) as _exception:
+        await test_client.namespace.delete(namespace_key)
 
     with pytest.raises(HTTPError) as _exception:
-        await test_client.entry.delete(key)
+        await test_client.entry.delete(entry_key)
 
-    await client.entry.grant(key, test_user, access=[GrantAccess.DELETE])
-    await test_client.entry.delete(key)
+    # Test account can delete the namespace & entry when granted delete access
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.DELETE])
+    await test_client.namespace.delete(namespace_key)
+
+    await client.entry.grant(entry_key, test_user, access=[GrantAccess.DELETE])
+    await test_client.entry.delete(entry_key)
 
 
 @pytest.mark.asyncio
