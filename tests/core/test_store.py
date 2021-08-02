@@ -254,20 +254,40 @@ async def test_entry_delete_grant_access(client, create_user):
 
 
 @pytest.mark.asyncio
-async def test_entry_union_access(client, create_user):
+async def test_union_access(client, create_user):
     """Multiple access types grant all of their respective access"""
     await client.authenticate()
 
-    test_client = await create_user("test", permissions=[Permission.STORE_USE])
+    # Create the test user
+    test_user = r_str(8)
+    test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
     await test_client.authenticate()
 
-    await client.entry.set("key", "value")
-    await client.entry.grant("key", "test", access=[GrantAccess.READ, GrantAccess.WRITE])
+    # Define the randomized variables
+    namespace_key = r_str(8)
+    direct_entry_key = r_str(8)
+    indirect_entry_key = r_str(8, prefix=namespace_key)
+    value = r_str(16)
 
-    # User should have read and write access
-    assert await test_client.entry.get("key") == "value"
-    await test_client.entry.set("key", "value")
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key)
+    await client.entry.set(direct_entry_key, value)
+    await client.entry.set(indirect_entry_key, value)
 
-    # User should not have delete access
+    # Grant READ/DELETE access to the namespace and entry
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.READ, GrantAccess.DELETE])
+    await client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.READ, GrantAccess.DELETE])
+
+    # User should not have WRITE access to either entry
     with pytest.raises(HTTPError) as _exception:
-        await test_client.entry.delete("key")
+        await test_client.entry.set(direct_entry_key, r_str(8))
+
+    with pytest.raises(HTTPError) as _exception:
+        await test_client.entry.set(indirect_entry_key, r_str(8))
+
+    # User should have READ and DELETE access
+    assert await test_client.entry.get(direct_entry_key) == value
+    assert await test_client.entry.get(indirect_entry_key) == value
+
+    await test_client.entry.delete(direct_entry_key)
+    await test_client.entry.delete(indirect_entry_key)
