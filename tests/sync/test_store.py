@@ -1,14 +1,15 @@
-import pytest
-from httpx import HTTPError
-from nacl import encoding
 import random
 import string
 
-from backbone.models import Permission, GrantAccess
+import pytest
+from httpx import HTTPError
+from nacl import encoding
+
+from backbone.models import GrantAccess, Permission
 
 
-def r_str(length: int, *, prefix: str = '') -> str:
-    return prefix + ''.join(random.choice(string.ascii_lowercase) for _ in range(length))
+def r_str(length: int, *, prefix: str = "") -> str:
+    return prefix + "".join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
 @pytest.mark.sync
@@ -113,31 +114,34 @@ def test_read_grant_access(client, create_user):
 
     # Create the test user
     test_user = r_str(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_READ])
+    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
     test_client.authenticate()
 
     # Define the randomized variables
     namespace_key = r_str(8)
-    entry_key = r_str(8)
+    direct_entry_key = r_str(8)
+    indirect_entry_key = r_str(8, prefix=namespace_key)
     value = r_str(16)
 
     # Create the namespace & entry
     client.namespace.create(namespace_key)
-    client.entry.set(entry_key, value)
+    client.entry.set(direct_entry_key, value, access=[GrantAccess.READ])
+    client.entry.set(indirect_entry_key, value, access=[GrantAccess.READ])
 
     # Test account fails to find the namespace & entry
     with pytest.raises(HTTPError) as _exception:
         test_client.namespace.get(namespace_key)
 
     with pytest.raises(HTTPError) as _exception:
-        test_client.entry.get(entry_key)
+        test_client.entry.get(direct_entry_key)
 
     # Granting the test account read access and reading works as expected
     client.namespace.grant(namespace_key, test_user, access=[GrantAccess.READ])
-    assert test_client.namespace.get(namespace_key)
+    test_client.namespace.get(namespace_key)
+    assert test_client.entry.get(indirect_entry_key) == value
 
-    client.entry.grant(entry_key, test_user, access=[GrantAccess.READ])
-    assert test_client.entry.get(entry_key) == value
+    client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.READ])
+    assert test_client.entry.get(direct_entry_key) == value
 
 
 @pytest.mark.sync

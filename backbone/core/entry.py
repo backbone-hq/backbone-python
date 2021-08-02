@@ -66,7 +66,7 @@ class EntryClient:
                 ],
             },
             auth=self.backbone.authenticator,
-            timeout=None
+            timeout=None,
         )
 
         response.raise_for_status()
