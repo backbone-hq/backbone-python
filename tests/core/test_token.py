@@ -34,8 +34,8 @@ async def test_client_authentication_explicit_permissions(client):
     assert isinstance(token.expiration, datetime)
 
     # Validate that the requested permissions exist on the token
-    assert Permission.STORE_READ in token.permissions
-    assert Permission.STORE_WRITE in token.permissions
+    assert Permission.STORE_USE in token.permissions
+    assert Permission.STORE_SHARE not in token.permissions
 
 
 @pytest.mark.asyncio
@@ -79,7 +79,7 @@ async def test_token_derivation_scope_reduction(client):
     await client.authenticate(permissions=[Permission.ROOT], duration=86_400)
 
     # Derive scoped token for 86_300 seconds
-    store_read_token = await client.token.derive(permissions=[Permission.STORE_READ], duration=86_300)
+    store_read_token = await client.token.derive(permissions=[Permission.STORE_USE], duration=86_300)
     assert len(store_read_token) == 24
 
 

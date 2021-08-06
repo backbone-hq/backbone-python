@@ -25,7 +25,7 @@ def test_user_read(client):
 
 @pytest.mark.sync
 def test_user_creation_and_deletion(client, create_user):
-    client.authenticate(permissions=[Permission.USER_MANAGE, Permission.STORE_READ])
+    client.authenticate(permissions=[Permission.USER_MANAGE])
 
     test_client = create_user(username="test", permissions=[])
     test_client.authenticate()

@@ -25,7 +25,7 @@ async def test_user_read(client):
 
 @pytest.mark.asyncio
 async def test_user_creation_and_deletion(client, create_user):
-    await client.authenticate(permissions=[Permission.USER_MANAGE, Permission.STORE_READ])
+    await client.authenticate(permissions=[Permission.USER_MANAGE])
 
     test_client = await create_user(username="test", permissions=[])
     await test_client.authenticate()
