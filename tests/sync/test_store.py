@@ -179,7 +179,7 @@ def test_read_grant_access(client, create_user):
 
 
 @pytest.mark.sync
-def test_entry_write_grant_access(client, create_user):
+def test_write_grant_access(client, create_user):
     """Direct WRITE grant access allows the entry/namespace to be overwritten"""
     client.authenticate()
 
@@ -196,28 +196,29 @@ def test_entry_write_grant_access(client, create_user):
     new_value = r_str(16)
 
     # Create the namespace & entry
-    client.namespace.create(namespace_key)
+    # client.namespace.create(namespace_key)
     client.entry.set(direct_entry_key, value, access=[GrantAccess.WRITE])
-    client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
+    # client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
 
     # Test account fails to overwrite the entry
     with pytest.raises(HTTPError) as _exception:
         test_client.entry.set(direct_entry_key, new_value)
 
     # Test account can overwrite the entry when granted write access
-    client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
-    test_client.entry.set(indirect_entry_key, new_value)
+    # client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    # test_client.entry.set(indirect_entry_key, new_value)
 
+    client.namespace.grant("", test_user, access=[GrantAccess.READ])
     client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.WRITE])
     test_client.entry.set(direct_entry_key, new_value)
 
     # The original user must retain access after the overwrite
-    client.entry.set(indirect_entry_key, new_value)
-    client.entry.set(direct_entry_key, new_value)
+    # client.entry.set(indirect_entry_key, new_value)
+    # client.entry.set(direct_entry_key, new_value)
 
 
 @pytest.mark.sync
-def test_entry_delete_grant_access(client, create_user):
+def test_delete_grant_access(client, create_user):
     """DELETE grant access on an entry allows the entry to be deleted"""
     client.authenticate()
 
@@ -254,7 +255,7 @@ def test_entry_delete_grant_access(client, create_user):
 
 
 @pytest.mark.sync
-def test_union_access(client, create_user):
+def test_multiple_grant_access(client, create_user):
     """Multiple access types grant all of their respective access"""
     client.authenticate()
 

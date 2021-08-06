@@ -179,7 +179,7 @@ async def test_read_grant_access(client, create_user):
 
 
 @pytest.mark.asyncio
-async def test_entry_write_grant_access(client, create_user):
+async def test_write_grant_access(client, create_user):
     """Direct WRITE grant access allows the entry/namespace to be overwritten"""
     await client.authenticate()
 
@@ -196,28 +196,29 @@ async def test_entry_write_grant_access(client, create_user):
     new_value = r_str(16)
 
     # Create the namespace & entry
-    await client.namespace.create(namespace_key)
+    # await client.namespace.create(namespace_key)
     await client.entry.set(direct_entry_key, value, access=[GrantAccess.WRITE])
-    await client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
+    # await client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
 
     # Test account fails to overwrite the entry
     with pytest.raises(HTTPError) as _exception:
         await test_client.entry.set(direct_entry_key, new_value)
 
     # Test account can overwrite the entry when granted write access
-    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
-    await test_client.entry.set(indirect_entry_key, new_value)
+    # await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    # await test_client.entry.set(indirect_entry_key, new_value)
 
+    await client.namespace.grant("", test_user, access=[GrantAccess.READ])
     await client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.WRITE])
     await test_client.entry.set(direct_entry_key, new_value)
 
     # The original user must retain access after the overwrite
-    await client.entry.set(indirect_entry_key, new_value)
-    await client.entry.set(direct_entry_key, new_value)
+    # await client.entry.set(indirect_entry_key, new_value)
+    # await client.entry.set(direct_entry_key, new_value)
 
 
 @pytest.mark.asyncio
-async def test_entry_delete_grant_access(client, create_user):
+async def test_delete_grant_access(client, create_user):
     """DELETE grant access on an entry allows the entry to be deleted"""
     await client.authenticate()
 
@@ -254,7 +255,7 @@ async def test_entry_delete_grant_access(client, create_user):
 
 
 @pytest.mark.asyncio
-async def test_union_access(client, create_user):
+async def test_multiple_grant_access(client, create_user):
     """Multiple access types grant all of their respective access"""
     await client.authenticate()
 

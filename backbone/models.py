@@ -76,7 +76,7 @@ class EntryGrant(BaseGrant):
 
 
 class Chain(BackboneModel):
-    key: store_key()
+    key: root_store_key()
     chain: List[NamespaceGrant]
 
 

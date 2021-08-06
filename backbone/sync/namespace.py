@@ -138,56 +138,67 @@ class NamespaceClient:
         return response.json()
 
     def delete(self, key: str) -> None:
-        # Find closest parent namespace
-        chain = self.backbone.namespace.get_chain(key)
+        child_namespaces = []
+        for child_namespace in self.get_child_namespaces(key):
+            child_namespaces.append(child_namespace)
 
-        # If a chain exists, the namespace is not isolated
-        if chain:
-            closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(self.backbone._secret_key, chain)
-            closest_namespace_pk: PublicKey = closest_namespace_sk.public_key
-            encoded_closest_namespace_pk: str = closest_namespace_pk.encode(
-                encoder=encoding.URLSafeBase64Encoder
-            ).decode()
+        child_entries = []
+        for child_entry in self.get_child_entries(key):
+            child_entries.append(child_entry)
 
-            for child_namespace in self.get_child_namespaces(key):
-                child_public_key = PublicKey(child_namespace["public_key"], encoder=encoding.URLSafeBase64Encoder)
+        # Grants must be overwritten if the namespace has children
+        if child_namespaces or child_entries:
+            chain = self.backbone.namespace.get_chain(key)
 
-                grant = next(
-                    (
-                        grant
-                        for grant in child_namespace["grants"]
-                        if grant["grantee_pk"] == encoded_closest_namespace_pk
-                    ),
-                    None,
+            # If a chain exists, the namespace is not isolated
+            if chain:
+                closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(
+                    self.backbone._secret_key, chain
                 )
+                closest_namespace_pk: PublicKey = closest_namespace_sk.public_key
+                encoded_closest_namespace_pk: str = closest_namespace_pk.encode(
+                    encoder=encoding.URLSafeBase64Encoder
+                ).decode()
 
-                grantee_sk: PrivateKey = PrivateKey(
-                    crypto.decrypt_grant(child_public_key, closest_namespace_sk, grant["value"])
-                )
+                for child_namespace in child_namespaces:
+                    child_public_key = PublicKey(child_namespace["public_key"], encoder=encoding.URLSafeBase64Encoder)
 
-                prospective_grant = {
-                    "grantee_pk": encoded_closest_namespace_pk,
-                    "value": crypto.encrypt_grant(closest_namespace_pk, grantee_sk).decode(),
-                    "access": grant["access"],
-                }
+                    grant = next(
+                        (
+                            grant
+                            for grant in child_namespace["grants"]
+                            if grant["grantee_pk"] == encoded_closest_namespace_pk
+                        ),
+                        None,
+                    )
 
-                self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
+                    grantee_sk: PrivateKey = PrivateKey(
+                        crypto.decrypt_grant(child_public_key, closest_namespace_sk, grant["value"])
+                    )
 
-            for child_entry in self.get_child_entries(key):
-                # Find the closest namespace's grant
-                grant = next(
-                    (grant for grant in child_entry["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
-                )
+                    prospective_grant = {
+                        "grantee_pk": encoded_closest_namespace_pk,
+                        "value": crypto.encrypt_grant(closest_namespace_pk, grantee_sk).decode(),
+                        "access": grant["access"],
+                    }
 
-                entry_key = crypto.decrypt_entry_encryption_key(grant["value"], closest_namespace_sk)
+                    self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
 
-                prospective_grant = {
-                    "grantee_pk": encoded_closest_namespace_pk,
-                    "value": crypto.create_entry_grant(entry_key, closest_namespace_pk).decode(),
-                    "access": grant["access"],
-                }
+                for child_entry in child_entries:
+                    # Find the closest namespace's grant
+                    grant = next(
+                        (grant for grant in child_entry["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
+                    )
 
-                self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
+                    entry_key = crypto.decrypt_entry_encryption_key(grant["value"], closest_namespace_sk)
+
+                    prospective_grant = {
+                        "grantee_pk": encoded_closest_namespace_pk,
+                        "value": crypto.create_entry_grant(entry_key, closest_namespace_pk).decode(),
+                        "access": grant["access"],
+                    }
+
+                    self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
 
         response = self.backbone.session.delete(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         response.raise_for_status()
