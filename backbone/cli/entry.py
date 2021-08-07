@@ -1,8 +1,6 @@
-from typing import List
+from typing import List, Optional
 
 import typer
-from nacl import encoding
-from nacl.public import PublicKey
 
 from backbone.cli.utilities import client_from_config, read_configuration
 from backbone.models import GrantAccess
@@ -21,12 +19,12 @@ def entry_search(prefix: str):
 
 
 @entry_cli.command("set")
-def entry_set(key: str, value: str, access: List[GrantAccess] = ()):
+def entry_set(key: str, value: str, access: List[GrantAccess] = (), duration: Optional[int] = None):
     """Sets an entry"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        client.entry.set(key, value, access=access)
+        client.entry.set(key, value, access=access, duration=duration)
         typer.echo(f"{key}: {value}")
 
 
@@ -54,9 +52,7 @@ def entry_share(key: str, username: str, access: List[GrantAccess] = ()):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        username = client.user.search(username=username)
-        public_key = PublicKey(username["public_key"], encoder=encoding.URLSafeBase64Encoder)
-        typer.echo(client.entry.grant(key, public_key, access=access))
+        typer.echo(client.entry.grant(key, username, access=access))
 
 
 @entry_cli.command("revoke")
@@ -64,6 +60,4 @@ def entry_revoke(key: str, username: str):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        username = client.user.search(username=username)
-        public_key = PublicKey(username["public_key"], encoder=encoding.URLSafeBase64Encoder)
-        typer.echo(client.entry.revoke(key, public_key))
+        typer.echo(client.entry.revoke(key, username))
