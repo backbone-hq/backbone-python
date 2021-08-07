@@ -1,5 +1,7 @@
+import asyncio
 import random
 import string
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import HTTPError
@@ -21,7 +23,7 @@ def test_entry_creation_read_deletion(client):
 
     # Set the entry
     result = client.entry.set(key, value)
-    assert set(result.keys()) == {"key", "value", "chain", "grants"}
+    assert set(result.keys()) == {"key", "value", "chain", "grants", "duration"}
 
     assert result["key"] == key
     assert len(result["value"]) == 56 + ((len(value) * 4 / 3) // 4) * 4
@@ -36,6 +38,24 @@ def test_entry_creation_read_deletion(client):
     assert result is None
 
     # Fail to obtain the deleted entry
+    with pytest.raises(HTTPError) as _exception:
+        client.entry.get(key)
+
+
+@pytest.mark.sync
+def test_entry_expiration(client):
+    client.authenticate(permissions=[Permission.STORE_USE])
+    key = r_str(8)
+    value = r_str(16)
+
+    # Set the entry for 1 second
+    client.entry.set(key, value, duration=1)
+
+    # Immediate call succeeds
+    client.entry.get(key)
+
+    # Delayed call fails
+    asyncio.sleep(1)
     with pytest.raises(HTTPError) as _exception:
         client.entry.get(key)
 

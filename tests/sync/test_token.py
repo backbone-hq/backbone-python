@@ -1,5 +1,4 @@
-from datetime import datetime
-
+import pydantic
 import pytest
 from httpx import HTTPError
 from nacl.exceptions import CryptoError
@@ -29,11 +28,8 @@ def test_client_authentication_explicit_permissions(client):
     # Get the existing token
     token: Token = client.token.get()
 
-    # Check the formats of the timestamps; throws `ValueError` if not ISO8601 compliant
-    assert isinstance(token.creation, datetime)
-    assert isinstance(token.expiration, datetime)
-
     # Validate that the requested permissions exist on the token
+    assert token.duration
     assert Permission.STORE_USE in token.permissions
     assert Permission.STORE_SHARE not in token.permissions
 
@@ -57,10 +53,10 @@ def test_client_authentication_implicit_max_permissions(client):
 
 @pytest.mark.sync
 def test_client_authentication_zero_or_negative_token_duration_fails(client):
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(pydantic.ValidationError) as _exception:
         client.authenticate(duration=-1)
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(pydantic.ValidationError) as _exception:
         client.authenticate(duration=0)
 
 

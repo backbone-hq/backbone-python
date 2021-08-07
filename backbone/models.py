@@ -1,9 +1,8 @@
-from datetime import datetime
 from enum import Enum
 from functools import partial
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, conset, constr
+from pydantic import BaseModel, Field, conint, conset, constr
 
 # Primitive types
 safe_base64 = partial(constr, strip_whitespace=True, regex=r"[a-zA-Z0-9-_]+={0,3}")
@@ -17,6 +16,10 @@ public_key = partial(safe_base64, min_length=44, max_length=44)
 # Store primitives
 store_key = partial(constr, strip_whitespace=True, min_length=1, max_length=256)
 root_store_key = partial(store_key, min_length=0)
+
+# Token
+entry_duration = conint(gt=0)
+token_duration = conint(gt=0, le=30 * 86_400)
 
 
 class Permission(Enum):
@@ -92,6 +95,7 @@ class Namespace(NamespaceDefinition, Chain):
 class EntryDefinition(BackboneModel):
     value: safe_base64(max_length=4096)
     grants: List[EntryGrant]
+    duration: Optional[entry_duration] = Field(default=None)
 
 
 class Entry(EntryDefinition, Chain):
@@ -100,21 +104,20 @@ class Entry(EntryDefinition, Chain):
 
 class Token(BackboneModel):
     hidden_token: safe_base64()
-    creation: datetime
-    expiration: datetime
+    duration: token_duration
     permissions: Optional[List[Permission]]
 
 
 class TokenDerivationRequest(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
-    duration: Optional[int] = Field(default=None)
+    duration: token_duration = Field(default=86_400)
 
 
 class TokenAuthenticationRequest(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
     workspace: constr(min_length=1, max_length=128)
     username: constr(min_length=1, max_length=128)
-    duration: Optional[int] = Field(default=86_400)
+    duration: token_duration = Field(default=86_400)
 
 
 class Action(Enum):

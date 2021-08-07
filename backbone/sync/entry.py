@@ -1,4 +1,4 @@
-from typing import Iterable, List, Set, Tuple
+from typing import Iterable, List, Optional, Set, Tuple
 
 from backbone import crypto
 from backbone.crypto import PrivateKey, PublicKey, encoding
@@ -46,7 +46,7 @@ class EntryClient:
         for item in self.backbone.paginate(f"{self.bulk_endpoint}/{prefix}"):
             yield item
 
-    def set(self, key: str, value: str, access: List[GrantAccess] = ()) -> dict:
+    def set(self, key: str, value: str, access: List[GrantAccess] = (), duration: Optional[int] = None) -> dict:
         chain = self.backbone.namespace.get_chain(key)
         closest_namespace_grant = chain[-1]
         namespace_public_key = PublicKey(closest_namespace_grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
@@ -64,6 +64,7 @@ class EntryClient:
                     }
                     for public_key, value in grants
                 ],
+                "duration": duration,
             },
             auth=self.backbone.authenticator,
             timeout=None,
