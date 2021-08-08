@@ -1,5 +1,3 @@
-from typing import Optional
-
 import typer
 from nacl.utils import encoding
 
@@ -27,14 +25,11 @@ backbone_cli.add_typer(workspace_cli, name="workspace")
 
 
 @backbone_cli.command("authenticate")
-def authenticate(username: str, workspace: Optional[str] = None, duration: int = 86_400, password: bool = False):
+def authenticate(workspace: str, username: str, duration: int = 86_400, password: bool = False):
     configuration = resolve_configuration(
         workspace=workspace,
         username=username,
     )
-
-    if configuration[Configuration.WORKSPACE] is None:
-        configuration[Configuration.WORKSPACE] = typer.prompt("Please enter your workspace")
 
     secret_key = get_secret(username=username, password=password)
     configuration[Configuration.KEY] = secret_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
