@@ -15,6 +15,7 @@ from backbone.cli.utilities import (
     resolve_configuration,
     write_configuration,
 )
+from backbone.cli.workspace import workspace_cli
 
 # Specify CLI structure
 backbone_cli = typer.Typer()
@@ -22,6 +23,7 @@ backbone_cli.add_typer(config_cli, name="config")
 backbone_cli.add_typer(entry_cli, name="entry")
 backbone_cli.add_typer(namespace_cli, name="namespace")
 backbone_cli.add_typer(user_cli, name="user")
+backbone_cli.add_typer(workspace_cli, name="workspace")
 
 
 @backbone_cli.command("authenticate")
