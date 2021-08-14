@@ -108,6 +108,3 @@ venv.bak/
 
 # Generated locations
 dist
-
-# Configuration files
-**/*.json

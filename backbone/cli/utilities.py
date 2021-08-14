@@ -10,8 +10,9 @@ from nacl.public import PrivateKey
 from backbone import crypto
 from backbone.sync import BackboneClient
 
-BACKBONE_ROOT = Path(__file__).parent
-BACKBONE_CONFIG = BACKBONE_ROOT / "backbone.json"
+# Define the configuration file location
+BACKBONE_ROOT: Path = Path(typer.get_app_dir("backbone"))
+BACKBONE_CONFIG: Path = BACKBONE_ROOT / "config.json"
 
 
 class Configuration(Enum):
