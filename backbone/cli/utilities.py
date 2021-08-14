@@ -93,5 +93,8 @@ def read_configuration() -> Dict[Configuration, str]:
 
 
 def write_configuration(configuration: Dict[Configuration, str]) -> None:
+    if not BACKBONE_ROOT.is_dir():
+        BACKBONE_ROOT.mkdir()
+
     with open(BACKBONE_CONFIG, "w") as config_file:
         json.dump({key.value: value for key, value in configuration.items()}, config_file)
