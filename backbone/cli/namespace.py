@@ -10,9 +10,9 @@ from backbone.models import GrantAccess
 namespace_cli = typer.Typer()
 
 
-@namespace_cli.command("search")
-def namespace_search(prefix: str):
-    """Searches for entries with a given prefix"""
+@namespace_cli.command("list")
+def namespace_list(prefix: typer.Argument("")):
+    """List namespaces with a given prefix"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
