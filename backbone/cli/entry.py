@@ -8,9 +8,9 @@ from backbone.models import GrantAccess
 entry_cli = typer.Typer()
 
 
-@entry_cli.command("search")
-def entry_search(prefix: str):
-    """Searches for entries with a given prefix"""
+@entry_cli.command("list")
+def entry_list(prefix: str = typer.Argument("")):
+    """List entries with a given prefix"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
