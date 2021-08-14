@@ -9,13 +9,16 @@ safe_base64 = partial(constr, strip_whitespace=True, regex=r"[a-zA-Z0-9-_]+={0,3
 
 # Semantic types
 email_address = partial(
-    constr, strip_whitespace=True, regex=r"[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+", min_length=8, max_length=128
+    constr,
+    strip_whitespace=True,
+    regex=r"[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+",
+    min_length=8,
+    max_length=128,
 )
 public_key = partial(safe_base64, min_length=44, max_length=44)
 
 # Store primitives
-store_key = partial(constr, strip_whitespace=True, min_length=1, max_length=256)
-root_store_key = partial(store_key, min_length=0)
+store_key = partial(constr, strip_whitespace=True, max_length=256)
 
 # Token
 entry_duration = conint(gt=0)
@@ -79,7 +82,7 @@ class EntryGrant(BaseGrant):
 
 
 class Chain(BackboneModel):
-    key: root_store_key()
+    key: store_key()
     chain: List[NamespaceGrant]
 
 
