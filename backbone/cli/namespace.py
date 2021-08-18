@@ -20,7 +20,7 @@ def namespace_list(prefix: str = typer.Argument("")):
             typer.echo(namespace)
 
 
-@namespace_cli.command("set")
+@namespace_cli.command("create")
 def namespace_create(key: str, access: List[GrantAccess] = (), isolated: bool = False):
     """Creates an namespace"""
     configuration = read_configuration()
