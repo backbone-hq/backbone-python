@@ -11,7 +11,7 @@ namespace_cli = typer.Typer()
 
 
 @namespace_cli.command("list")
-def namespace_list(prefix: typer.Argument("")):
+def namespace_list(prefix: str = typer.Argument("")):
     """List namespaces with a given prefix"""
     configuration = read_configuration()
 
