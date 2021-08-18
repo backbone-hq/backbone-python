@@ -97,10 +97,10 @@ async def test_intermediate_namespace_creation(client):
     value = r_str(16)
 
     # Create the entry first
-    client.entry.set(entry_key, value)
+    await client.entry.set(entry_key, value)
 
     # Create the intermediate namespace
-    client.namespace.create(namespace_key)
+    await client.namespace.create(namespace_key)
 
 
 @pytest.mark.asyncio
@@ -112,14 +112,14 @@ async def test_intermediate_namespace_deletion(client):
     child_entry_key = r_str(8, prefix=namespace_key)
 
     # Create the intermediate namespace
-    client.namespace.create(namespace_key)
+    await client.namespace.create(namespace_key)
 
     # Create the children
-    client.namespace.create(child_namespace_key)
-    client.entry.set(child_entry_key, r_str(16))
+    await client.namespace.create(child_namespace_key)
+    await client.entry.set(child_entry_key, r_str(16))
 
     # Delete the intermediate namespace
-    client.namespace.delete(namespace_key)
+    await client.namespace.delete(namespace_key)
 
 
 @pytest.mark.asyncio
