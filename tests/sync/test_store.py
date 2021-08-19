@@ -1,7 +1,4 @@
 import asyncio
-import random
-import string
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import HTTPError
@@ -9,17 +6,15 @@ from nacl import encoding
 
 from backbone.models import GrantAccess, Permission
 
-
-def r_str(length: int, *, prefix: str = "") -> str:
-    return prefix + "".join(random.choice(string.ascii_lowercase) for _ in range(length))
+from .utilities import random_lower
 
 
 @pytest.mark.sync
 def test_entry_creation_read_deletion(client):
     """Entries can be created, read and deleted"""
     client.authenticate(permissions=[Permission.STORE_USE])
-    key = r_str(8)
-    value = r_str(16)
+    key = random_lower(8)
+    value = random_lower(16)
 
     # Set the entry
     result = client.entry.set(key, value)
@@ -45,8 +40,8 @@ def test_entry_creation_read_deletion(client):
 @pytest.mark.sync
 def test_entry_expiration(client):
     client.authenticate(permissions=[Permission.STORE_USE])
-    key = r_str(8)
-    value = r_str(16)
+    key = random_lower(8)
+    value = random_lower(16)
 
     # Set the entry for 1 second
     client.entry.set(key, value, duration=1)
@@ -64,7 +59,7 @@ def test_entry_expiration(client):
 def test_namespace_creation_read_deletion(client):
     """Namespaces can be created, read and deleted"""
     client.authenticate(permissions=[Permission.STORE_USE])
-    key = r_str(8)
+    key = random_lower(8)
 
     # Create the namespace
     result = client.namespace.create(key)
@@ -92,9 +87,9 @@ def test_namespace_creation_read_deletion(client):
 def test_intermediate_namespace_creation(client):
     client.authenticate(permissions=[Permission.STORE_USE])
 
-    namespace_key = r_str(8)
-    entry_key = r_str(8, prefix=namespace_key)
-    value = r_str(16)
+    namespace_key = random_lower(8)
+    entry_key = random_lower(8, prefix=namespace_key)
+    value = random_lower(16)
 
     # Create the entry first
     client.entry.set(entry_key, value)
@@ -107,16 +102,16 @@ def test_intermediate_namespace_creation(client):
 def test_intermediate_namespace_deletion(client):
     client.authenticate(permissions=[Permission.STORE_USE])
 
-    namespace_key = r_str(8)
-    child_namespace_key = r_str(8, prefix=namespace_key)
-    child_entry_key = r_str(8, prefix=namespace_key)
+    namespace_key = random_lower(8)
+    child_namespace_key = random_lower(8, prefix=namespace_key)
+    child_entry_key = random_lower(8, prefix=namespace_key)
 
     # Create the intermediate namespace
     client.namespace.create(namespace_key)
 
     # Create the children
     client.namespace.create(child_namespace_key)
-    client.entry.set(child_entry_key, r_str(16))
+    client.entry.set(child_entry_key, random_lower(16))
 
     # Delete the intermediate namespace
     client.namespace.delete(namespace_key)
@@ -127,9 +122,9 @@ def test_entry_operations_in_isolated_namespace(client):
     """Entries can be created, read and deleted within an isolated namespace"""
     client.authenticate(permissions=[Permission.STORE_USE])
 
-    namespace_key = r_str(8)
-    entry_key = r_str(8, prefix=namespace_key)
-    entry_value = r_str(16)
+    namespace_key = random_lower(8)
+    entry_key = random_lower(8, prefix=namespace_key)
+    entry_value = random_lower(16)
 
     client.namespace.create(namespace_key, isolated=True)
     client.entry.set(entry_key, entry_value)
@@ -145,8 +140,8 @@ def test_search(client):
     """Entries and Namespace searches return the correct results"""
     client.authenticate(permissions=[Permission.STORE_USE])
 
-    common_prefix = r_str(8)
-    namespace_keys = [r_str(8, prefix=common_prefix) for _ in range(3)]
+    common_prefix = random_lower(8)
+    namespace_keys = [random_lower(8, prefix=common_prefix) for _ in range(3)]
     for key in namespace_keys:
         client.namespace.create(key)
 
@@ -167,15 +162,15 @@ def test_read_grant_access(client, create_user):
     client.authenticate()
 
     # Create the test user
-    test_user = r_str(8)
+    test_user = random_lower(8)
     test_client = create_user(test_user, permissions=[Permission.STORE_USE])
     test_client.authenticate()
 
     # Define the randomized variables
-    namespace_key = r_str(8)
-    direct_entry_key = r_str(8)
-    indirect_entry_key = r_str(8, prefix=namespace_key)
-    value = r_str(16)
+    namespace_key = random_lower(8)
+    direct_entry_key = random_lower(8)
+    indirect_entry_key = random_lower(8, prefix=namespace_key)
+    value = random_lower(16)
 
     # Create the namespace & entry
     client.namespace.create(namespace_key)
@@ -204,16 +199,16 @@ def test_write_grant_access(client, create_user):
     client.authenticate()
 
     # Create the test user
-    test_user = r_str(8)
+    test_user = random_lower(8)
     test_client = create_user(test_user, permissions=[Permission.STORE_USE])
     test_client.authenticate()
 
     # Define the randomized variables
-    namespace_key = r_str(8)
-    direct_entry_key = r_str(8)
-    indirect_entry_key = r_str(8, prefix=namespace_key)
-    value = r_str(16)
-    new_value = r_str(16)
+    namespace_key = random_lower(8)
+    direct_entry_key = random_lower(8)
+    indirect_entry_key = random_lower(8, prefix=namespace_key)
+    value = random_lower(16)
+    new_value = random_lower(16)
 
     # Create the namespace & entry
     # client.namespace.create(namespace_key)
@@ -243,15 +238,15 @@ def test_delete_grant_access(client, create_user):
     client.authenticate()
 
     # Create the test user
-    test_user = r_str(8)
+    test_user = random_lower(8)
     test_client = create_user(test_user, permissions=[Permission.STORE_USE])
     test_client.authenticate()
 
     # Define the randomized variables
-    namespace_key = r_str(8)
-    direct_entry_key = r_str(8)
-    indirect_entry_key = r_str(8, prefix=namespace_key)
-    value = r_str(16)
+    namespace_key = random_lower(8)
+    direct_entry_key = random_lower(8)
+    indirect_entry_key = random_lower(8, prefix=namespace_key)
+    value = random_lower(16)
 
     # Create the namespace & entry
     client.namespace.create(namespace_key)
@@ -280,15 +275,15 @@ def test_multiple_grant_access(client, create_user):
     client.authenticate()
 
     # Create the test user
-    test_user = r_str(8)
+    test_user = random_lower(8)
     test_client = create_user(test_user, permissions=[Permission.STORE_USE])
     test_client.authenticate()
 
     # Define the randomized variables
-    namespace_key = r_str(8)
-    direct_entry_key = r_str(8)
-    indirect_entry_key = r_str(8, prefix=namespace_key)
-    value = r_str(16)
+    namespace_key = random_lower(8)
+    direct_entry_key = random_lower(8)
+    indirect_entry_key = random_lower(8, prefix=namespace_key)
+    value = random_lower(16)
 
     # Create the namespace & entry
     client.namespace.create(namespace_key)
@@ -301,10 +296,10 @@ def test_multiple_grant_access(client, create_user):
 
     # User should not have WRITE access to either entry
     with pytest.raises(HTTPError) as _exception:
-        test_client.entry.set(direct_entry_key, r_str(8))
+        test_client.entry.set(direct_entry_key, random_lower(8))
 
     with pytest.raises(HTTPError) as _exception:
-        test_client.entry.set(indirect_entry_key, r_str(8))
+        test_client.entry.set(indirect_entry_key, random_lower(8))
 
     # User should have READ and DELETE access
     assert test_client.entry.get(direct_entry_key) == value

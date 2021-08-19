@@ -7,11 +7,13 @@ from nacl.public import PrivateKey
 
 from backbone.sync import BackboneClient, Permission
 
-WORKSPACE_NAME = "backbone"
-WORKSPACE_DISPLAY_NAME = "backbone-display"
+from .utilities import random_lower
+
+WORKSPACE_NAME = random_lower(8)
+WORKSPACE_DISPLAY_NAME = "Backbone Testing Workspace"
 
 ADMIN = "admin"
-ADMIN_EMAIL = "root@backbone.io"
+ADMIN_EMAIL = "testing@backbone.dev"
 ADMIN_SK = PrivateKey("CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
 
