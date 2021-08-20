@@ -4,11 +4,17 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import typer
+import nacl.exceptions
 from nacl import encoding
 from nacl.public import PrivateKey
 
 from backbone import crypto
 from backbone.sync import BackboneClient
+from nacl.pwhash import argon2id
+from nacl.hash import blake2b
+from nacl.secret import SecretBox
+from nacl.utils import encoding, random
+import getmac
 
 # Define the configuration file location
 BACKBONE_ROOT: Path = Path(typer.get_app_dir("backbone"))
@@ -75,11 +81,38 @@ def get_secret(username: str, password: bool) -> PrivateKey:
     )
 
 
+def get_mac_address():
+    return bytes.fromhex(getmac.get_mac_address().replace(":", ""))
+
+
+def encrypt_configuration(configuration):
+    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
+    secret = argon2id.kdf(size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN)
+
+    data = json.dumps(configuration).encode()
+    return SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
+
+
+def decrypt_configuration(data):
+    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
+    secret = argon2id.kdf(size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN)
+
+    try:
+        data = SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
+    except nacl.exceptions.CryptoError:
+        return {}
+
+    try:
+        return json.loads(data.decode())
+    except (UnicodeDecodeError, json.decoder.JSONDecodeError):
+        return {}
+
+
 def read_configuration() -> Dict[Configuration, str]:
     try:
-        with open(BACKBONE_CONFIG) as configuration_file:
-            configuration = json.load(configuration_file)
-    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        with BACKBONE_CONFIG.open("rb") as configuration_file:
+            configuration = decrypt_configuration(configuration_file.read())
+    except FileNotFoundError:
         return {}
 
     result = {}
@@ -96,5 +129,6 @@ def write_configuration(configuration: Dict[Configuration, str]) -> None:
     if not BACKBONE_ROOT.is_dir():
         BACKBONE_ROOT.mkdir()
 
-    with open(BACKBONE_CONFIG, "w") as config_file:
-        json.dump({key.value: value for key, value in configuration.items()}, config_file)
+    with open(BACKBONE_CONFIG, "wb") as config_file:
+        configuration = {key.value: value for key, value in configuration.items()}
+        config_file.write(encrypt_configuration(configuration))

@@ -46,9 +46,10 @@ def unasync_line(line: str, replacements: dict) -> str:
 
 
 def unasync_file(async_file: Path, sync_file: Path, replacements: dict):
-    with open(async_file, "r") as in_file:
+    with open(async_file, "r", encoding="utf-8") as in_file:
         sync_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(sync_file, "w", newline="") as out_file:
+
+        with open(sync_file, "w", encoding="utf-8", newline="") as out_file:
             for line in in_file.readlines():
                 line = unasync_line(line, replacements)
                 out_file.write(line)

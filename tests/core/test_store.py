@@ -21,7 +21,7 @@ async def test_entry_creation_read_deletion(client):
     assert set(result.keys()) == {"key", "value", "chain", "grants", "duration"}
 
     assert result["key"] == key
-    assert len(result["value"]) == 56 + ((len(value) * 4 / 3) // 4) * 4
+    assert len(result["value"]) == 56 + ((len(value.encode()) * 4 / 3) // 4) * 4
     assert len(result["chain"]) == 1
     assert len(result["grants"]) == 1
 
