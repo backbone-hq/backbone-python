@@ -85,7 +85,8 @@ def test_namespace_creation_read_deletion(client):
 
 @pytest.mark.sync
 def test_intermediate_namespace_creation(client):
-    client.authenticate(permissions=[Permission.STORE_USE])
+    # client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    client.authenticate()
 
     namespace_key = random_lower(8)
     entry_key = random_lower(8, prefix=namespace_key)
@@ -100,7 +101,7 @@ def test_intermediate_namespace_creation(client):
 
 @pytest.mark.sync
 def test_intermediate_namespace_deletion(client):
-    client.authenticate(permissions=[Permission.STORE_USE])
+    client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
 
     namespace_key = random_lower(8)
     child_namespace_key = random_lower(8, prefix=namespace_key)
@@ -120,7 +121,7 @@ def test_intermediate_namespace_deletion(client):
 @pytest.mark.sync
 def test_entry_operations_in_isolated_namespace(client):
     """Entries can be created, read and deleted within an isolated namespace"""
-    client.authenticate(permissions=[Permission.STORE_USE])
+    client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
 
     namespace_key = random_lower(8)
     entry_key = random_lower(8, prefix=namespace_key)

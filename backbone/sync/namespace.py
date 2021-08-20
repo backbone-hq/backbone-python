@@ -97,6 +97,7 @@ class NamespaceClient:
                     "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                     "value": crypto.encrypt_grant(new_namespace_key.public_key, grantee_sk).decode(),
                     "access": grant["access"],
+                    "active": False,
                 }
 
                 self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
@@ -114,6 +115,7 @@ class NamespaceClient:
                     "grantee_pk": new_namespace_key.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                     "value": crypto.create_entry_grant(entry_key, new_namespace_key.public_key).decode(),
                     "access": grant["access"],
+                    "active": False,
                 }
 
                 self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
@@ -180,6 +182,7 @@ class NamespaceClient:
                         "grantee_pk": encoded_closest_namespace_pk,
                         "value": crypto.encrypt_grant(closest_namespace_pk, grantee_sk).decode(),
                         "access": grant["access"],
+                        "active": False,
                     }
 
                     self.backbone.namespace.grant_raw(child_namespace["key"], prospective_grant)
@@ -196,6 +199,7 @@ class NamespaceClient:
                         "grantee_pk": encoded_closest_namespace_pk,
                         "value": crypto.create_entry_grant(entry_key, closest_namespace_pk).decode(),
                         "access": grant["access"],
+                        "active": False,
                     }
 
                     self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)

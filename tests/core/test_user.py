@@ -1,8 +1,11 @@
 import pytest
 from httpx import HTTPError
+from nacl import encoding
 
 from backbone.core import Permission
 from backbone.models import User
+
+from .conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
 
 # TODO: find_user endpoint
 # TODO: user pagination endpoint
@@ -16,10 +19,10 @@ async def test_user_read(client):
     user: User = await client.user.get()
 
     # Assert properties defined remain intact
-    assert user.name == "admin"
-    assert user.email_address == "root@backbone.io"
+    assert user.name == ADMIN_USERNAME
+    assert user.email_address == ADMIN_EMAIL
     # TODO: Return a PublicKey object
-    assert user.public_key == "etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4="
+    assert user.public_key == ADMIN_SK.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
     assert user.permissions == [Permission.ROOT]
 
 

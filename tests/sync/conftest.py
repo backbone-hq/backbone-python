@@ -12,7 +12,7 @@ from .utilities import random_lower
 WORKSPACE_NAME = random_lower(8)
 WORKSPACE_DISPLAY_NAME = "Backbone Testing Workspace"
 
-ADMIN = "admin"
+ADMIN_USERNAME = "admin"
 ADMIN_EMAIL = "testing@backbone.dev"
 ADMIN_SK = PrivateKey("CG1bq0tkf4FJlHhbXwgEv30eLj27xS4Cd8GgjBerDVg=", encoder=encoding.URLSafeBase64Encoder)
 
@@ -25,7 +25,7 @@ def event_loop():
 @pytest.mark.sync
 @pytest.fixture(scope="session")
 def client():
-    client = BackboneClient(workspace=WORKSPACE_NAME, username=ADMIN, secret_key=ADMIN_SK)
+    client = BackboneClient(workspace=WORKSPACE_NAME, username=ADMIN_USERNAME, secret_key=ADMIN_SK)
 
     # Create workspace
     client.workspace.create(display_name=WORKSPACE_DISPLAY_NAME, email_address=ADMIN_EMAIL)
