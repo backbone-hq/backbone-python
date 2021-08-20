@@ -69,10 +69,14 @@ def decrypt_entry_encryption_key(secret_kek: bytes, secret_key: PrivateKey) -> b
 
 
 def decrypt_namespace_grant_chain(secret_key: PrivateKey, chain: List[dict]) -> PrivateKey:
-    current_sk = secret_key
+    current_sk: PrivateKey = secret_key
 
     for grant in chain:
-        subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
-        current_sk: PrivateKey = PrivateKey(decrypt_grant(subject_pk, current_sk, grant["value"]))
+        current_sk = decrypt_namespace_grant_chain_step(current_sk, grant)
 
     return current_sk
+
+
+def decrypt_namespace_grant_chain_step(current_sk: PrivateKey, grant: dict) -> PrivateKey:
+    subject_pk = PublicKey(grant["subject_pk"], encoder=encoding.URLSafeBase64Encoder)
+    return PrivateKey(decrypt_grant(subject_pk, current_sk, grant["value"]))

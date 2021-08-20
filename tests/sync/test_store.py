@@ -21,7 +21,7 @@ def test_entry_creation_read_deletion(client):
     assert set(result.keys()) == {"key", "value", "chain", "grants", "duration"}
 
     assert result["key"] == key
-    assert len(result["value"]) == 56 + ((len(value) * 4 / 3) // 4) * 4
+    assert len(result["value"]) == 56 + ((len(value.encode()) * 4 / 3) // 4) * 4
     assert len(result["chain"]) == 1
     assert len(result["grants"]) == 1
 
@@ -105,14 +105,14 @@ def test_intermediate_namespace_deletion(client):
 
     namespace_key = random_lower(8)
     child_namespace_key = random_lower(8, prefix=namespace_key)
-    child_entry_key = random_lower(8, prefix=namespace_key)
+    # child_entry_key = random_lower(8, prefix=namespace_key)
 
     # Create the intermediate namespace
     client.namespace.create(namespace_key)
 
     # Create the children
     client.namespace.create(child_namespace_key)
-    client.entry.set(child_entry_key, random_lower(16))
+    # client.entry.set(child_entry_key, random_lower(16))
 
     # Delete the intermediate namespace
     client.namespace.delete(namespace_key)
@@ -212,9 +212,9 @@ def test_write_grant_access(client, create_user):
     new_value = random_lower(16)
 
     # Create the namespace & entry
-    # client.namespace.create(namespace_key)
+    client.namespace.create(namespace_key)
     client.entry.set(direct_entry_key, value, access=[GrantAccess.WRITE])
-    # client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
+    client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
 
     # Test account fails to overwrite the entry
     with pytest.raises(HTTPError) as _exception:

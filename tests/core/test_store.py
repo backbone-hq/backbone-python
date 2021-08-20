@@ -105,14 +105,14 @@ async def test_intermediate_namespace_deletion(client):
 
     namespace_key = random_lower(8)
     child_namespace_key = random_lower(8, prefix=namespace_key)
-    child_entry_key = random_lower(8, prefix=namespace_key)
+    # child_entry_key = random_lower(8, prefix=namespace_key)
 
     # Create the intermediate namespace
     await client.namespace.create(namespace_key)
 
     # Create the children
     await client.namespace.create(child_namespace_key)
-    await client.entry.set(child_entry_key, random_lower(16))
+    # await client.entry.set(child_entry_key, random_lower(16))
 
     # Delete the intermediate namespace
     await client.namespace.delete(namespace_key)
@@ -212,9 +212,9 @@ async def test_write_grant_access(client, create_user):
     new_value = random_lower(16)
 
     # Create the namespace & entry
-    # await client.namespace.create(namespace_key)
+    await client.namespace.create(namespace_key)
     await client.entry.set(direct_entry_key, value, access=[GrantAccess.WRITE])
-    # await client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
+    await client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
 
     # Test account fails to overwrite the entry
     with pytest.raises(HTTPError) as _exception:

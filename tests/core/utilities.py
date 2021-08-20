@@ -1,7 +1,7 @@
 import random
 import string
 
-_greek_alphabet = 'αβγδεζηθικλμνξοπρστυφχψω'
+_greek_alphabet = "αβγδεζηθικλμνξοπρστυφχψω"
 
 
 def random_lower(length: int, prefix: str = "") -> str:

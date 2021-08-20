@@ -154,11 +154,21 @@ class NamespaceClient:
 
             # If a chain exists, the namespace is not isolated
             if chain:
-                closest_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(
-                    self.backbone._secret_key, chain
+                # Split the chain into the new parent namespace and the current namespace (being deleted)
+                chain_invariant, chain_extension = chain[:-1], chain[-1]
+                new_parent_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain(
+                    self.backbone._secret_key, chain_invariant
                 )
-                closest_namespace_pk: PublicKey = closest_namespace_sk.public_key
-                encoded_closest_namespace_pk: str = closest_namespace_pk.encode(
+                new_parent_namespace_pk: PublicKey = new_parent_namespace_sk.public_key
+                new_parent_namespace_pk_encoded = new_parent_namespace_pk.encode(
+                    encoder=encoding.URLSafeBase64Encoder
+                ).decode()
+
+                current_parent_namespace_sk: PrivateKey = crypto.decrypt_namespace_grant_chain_step(
+                    new_parent_namespace_sk, chain_extension
+                )
+                current_parent_namespace_pk: PublicKey = current_parent_namespace_sk.public_key
+                current_parent_namespace_pk_encoded: str = current_parent_namespace_pk.encode(
                     encoder=encoding.URLSafeBase64Encoder
                 ).decode()
 
@@ -169,18 +179,18 @@ class NamespaceClient:
                         (
                             grant
                             for grant in child_namespace["grants"]
-                            if grant["grantee_pk"] == encoded_closest_namespace_pk
+                            if grant["grantee_pk"] == current_parent_namespace_pk_encoded
                         ),
                         None,
                     )
 
                     grantee_sk: PrivateKey = PrivateKey(
-                        crypto.decrypt_grant(child_public_key, closest_namespace_sk, grant["value"])
+                        crypto.decrypt_grant(child_public_key, current_parent_namespace_sk, grant["value"])
                     )
 
                     prospective_grant = {
-                        "grantee_pk": encoded_closest_namespace_pk,
-                        "value": crypto.encrypt_grant(closest_namespace_pk, grantee_sk).decode(),
+                        "grantee_pk": new_parent_namespace_pk_encoded,
+                        "value": crypto.encrypt_grant(new_parent_namespace_pk, grantee_sk).decode(),
                         "access": grant["access"],
                         "active": False,
                     }
@@ -190,14 +200,19 @@ class NamespaceClient:
                 for child_entry in child_entries:
                     # Find the closest namespace's grant
                     grant = next(
-                        (grant for grant in child_entry["grants"] if grant["grantee_pk"] == closest_namespace_pk), None
+                        (
+                            grant
+                            for grant in child_entry["grants"]
+                            if grant["grantee_pk"] == current_parent_namespace_pk_encoded
+                        ),
+                        None,
                     )
 
-                    entry_key = crypto.decrypt_entry_encryption_key(grant["value"], closest_namespace_sk)
+                    entry_key = crypto.decrypt_entry_encryption_key(grant["value"], current_parent_namespace_sk)
 
                     prospective_grant = {
-                        "grantee_pk": encoded_closest_namespace_pk,
-                        "value": crypto.create_entry_grant(entry_key, closest_namespace_pk).decode(),
+                        "grantee_pk": new_parent_namespace_pk_encoded,
+                        "value": crypto.create_entry_grant(entry_key, new_parent_namespace_pk).decode(),
                         "access": grant["access"],
                         "active": False,
                     }
