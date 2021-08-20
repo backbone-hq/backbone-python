@@ -15,6 +15,7 @@ from nacl.hash import blake2b
 from nacl.secret import SecretBox
 from nacl.utils import encoding, random
 import getmac
+import functools
 
 # Define the configuration file location
 BACKBONE_ROOT: Path = Path(typer.get_app_dir("backbone"))
@@ -26,6 +27,12 @@ class Configuration(Enum):
     USERNAME = "username"
     TOKEN = "token"
     KEY = "key"
+
+
+@functools.lru_cache()
+def _get_config_secret():
+    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
+    return argon2id.kdf(size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN)
 
 
 def _get_or_config(key: Configuration, value: Optional[str]) -> str:
@@ -86,16 +93,13 @@ def get_mac_address():
 
 
 def encrypt_configuration(configuration):
-    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
-    secret = argon2id.kdf(size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN)
-
+    secret = _get_config_secret()
     data = json.dumps(configuration).encode()
     return SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
 
 
 def decrypt_configuration(data):
-    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
-    secret = argon2id.kdf(size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN)
+    secret = _get_config_secret()
 
     try:
         data = SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
