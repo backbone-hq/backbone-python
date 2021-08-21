@@ -4,12 +4,12 @@ import httpx
 from nacl.public import PrivateKey, PublicKey
 
 from backbone import crypto
+from backbone.models import Permission
 from backbone.sync.entry import EntryClient
 from backbone.sync.namespace import NamespaceClient
 from backbone.sync.token import TokenClient
 from backbone.sync.user import UserClient
 from backbone.sync.workspace import WorkspaceClient
-from backbone.models import Permission
 
 __version__ = 0
 

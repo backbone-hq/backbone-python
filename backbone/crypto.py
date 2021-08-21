@@ -7,6 +7,10 @@ from nacl.secret import SecretBox
 from nacl.utils import encoding, random
 
 
+def digest_bytes(obj):
+    return blake2b(obj, digest_size=32, encoder=encoding.RawEncoder)
+
+
 def derive_password_key(identity: str, password: str) -> bytes:
     salt = blake2b(identity.encode(), digest_size=16, encoder=encoding.RawEncoder)
     return argon2id.kdf(size=32, password=password.encode(), salt=salt)

@@ -1,21 +1,21 @@
-import json
+import functools
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
-import typer
+import cbor2
+import getmac
 import nacl.exceptions
+import typer
 from nacl import encoding
+from nacl.hash import blake2b
 from nacl.public import PrivateKey
+from nacl.pwhash import argon2id
+from nacl.secret import SecretBox
+from nacl.utils import encoding, random
 
 from backbone import crypto
 from backbone.sync import BackboneClient
-from nacl.pwhash import argon2id
-from nacl.hash import blake2b
-from nacl.secret import SecretBox
-from nacl.utils import encoding, random
-import getmac
-import functools
 
 # Define the configuration file location
 BACKBONE_ROOT: Path = Path(typer.get_app_dir("backbone"))
@@ -30,9 +30,11 @@ class Configuration(Enum):
 
 
 @functools.lru_cache()
-def _get_config_secret():
+def _get_public_secret():
     salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
-    return argon2id.kdf(size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN)
+    return argon2id.kdf(
+        size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN
+    )
 
 
 def _get_or_config(key: Configuration, value: Optional[str]) -> str:
@@ -71,9 +73,8 @@ def client_from_config(configuration: Dict[Configuration, str]):
         secret_key=PrivateKey(configuration[Configuration.KEY], encoder=encoding.URLSafeBase64Encoder),
     )
 
-    token = configuration[Configuration.TOKEN]
-    if token:
-        client.load_token(token)
+    if Configuration.TOKEN in configuration:
+        client.load_token(configuration[Configuration.TOKEN])
 
     return client
 
@@ -93,22 +94,22 @@ def get_mac_address():
 
 
 def encrypt_configuration(configuration):
-    secret = _get_config_secret()
-    data = json.dumps(configuration).encode()
+    secret = _get_public_secret()
+    data = cbor2.dumps(configuration)
     return SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
 
 
 def decrypt_configuration(data):
-    secret = _get_config_secret()
+    secret = _get_public_secret()
 
     try:
-        data = SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
+        data = SecretBox(secret).decrypt(data, encoder=encoding.RawEncoder)
     except nacl.exceptions.CryptoError:
         return {}
 
     try:
-        return json.loads(data.decode())
-    except (UnicodeDecodeError, json.decoder.JSONDecodeError):
+        return cbor2.loads(data)
+    except (UnicodeDecodeError, cbor2.CBORError):
         return {}
 
 
