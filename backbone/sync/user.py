@@ -16,9 +16,7 @@ class UserClient:
             yield User.parse_obj(item)
 
     def search(self, usernames: Tuple[str]) -> Tuple[User]:
-        response = self.backbone.session.post(
-            self.bulk_endpoint, auth=self.backbone.authenticator, json=usernames
-        )
+        response = self.backbone.session.post(self.bulk_endpoint, auth=self.backbone.authenticator, json=usernames)
         response.raise_for_status()
         return tuple(User.parse_obj(user) for user in response.json())
 

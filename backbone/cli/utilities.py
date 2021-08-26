@@ -1,8 +1,10 @@
+import functools
 import json
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
 
+import cbor2
 import getmac
 import nacl.exceptions
 import typer
@@ -26,6 +28,14 @@ class Configuration(Enum):
     USERNAME = "username"
     TOKEN = "token"
     KEY = "key"
+
+
+@functools.lru_cache()
+def _get_public_secret():
+    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
+    return argon2id.kdf(
+        size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN
+    )
 
 
 def _get_or_config(key: Configuration, value: Optional[str]) -> str:
@@ -64,9 +74,8 @@ def client_from_config(configuration: Dict[Configuration, str]):
         secret_key=PrivateKey(configuration[Configuration.KEY], encoder=encoding.URLSafeBase64Encoder),
     )
 
-    token = configuration[Configuration.TOKEN]
-    if token:
-        client.load_token(token)
+    if Configuration.TOKEN in configuration:
+        client.load_token(configuration[Configuration.TOKEN])
 
     return client
 
@@ -86,29 +95,22 @@ def get_mac_address():
 
 
 def encrypt_configuration(configuration):
-    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
-    secret = argon2id.kdf(
-        size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN
-    )
-
-    data = json.dumps(configuration).encode()
+    secret = _get_public_secret()
+    data = cbor2.dumps(configuration)
     return SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
 
 
 def decrypt_configuration(data):
-    salt = blake2b(b"NOVUS ORDO SECLORUM", digest_size=16, encoder=encoding.RawEncoder)
-    secret = argon2id.kdf(
-        size=32, password=get_mac_address(), salt=salt, memlimit=argon2id.MEMLIMIT_MIN, opslimit=argon2id.OPSLIMIT_MIN
-    )
+    secret = _get_public_secret()
 
     try:
-        data = SecretBox(secret).encrypt(data, encoder=encoding.RawEncoder)
+        data = SecretBox(secret).decrypt(data, encoder=encoding.RawEncoder)
     except nacl.exceptions.CryptoError:
         return {}
 
     try:
-        return json.loads(data.decode())
-    except (UnicodeDecodeError, json.decoder.JSONDecodeError):
+        return cbor2.loads(data)
+    except (UnicodeDecodeError, cbor2.CBORError):
         return {}
 
 

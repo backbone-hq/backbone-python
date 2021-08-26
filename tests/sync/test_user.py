@@ -2,8 +2,8 @@ import pytest
 from httpx import HTTPError
 from nacl import encoding
 
-from backbone.sync import Permission
 from backbone.models import User
+from backbone.sync import Permission
 
 from .conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
 
