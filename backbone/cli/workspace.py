@@ -25,5 +25,7 @@ def workspace_create(workspace_name: str, display_name: str, username: str, emai
     with client_from_config(configuration) as client:
         workspace = client.workspace.create(display_name, email_address)
         typer.echo(f"{workspace.name}: {workspace.display_name}")
+        token = client.token.authenticate(permissions=None)
 
+    configuration[Configuration.TOKEN] = token
     write_configuration(configuration)
