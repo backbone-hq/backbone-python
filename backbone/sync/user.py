@@ -11,16 +11,18 @@ class UserClient:
     def __init__(self, client):
         self.backbone = client
 
-    def get_all(self) -> Iterable[User]:
-        for item in self.backbone.paginate(self.bulk_endpoint):
-            yield User.parse_obj(item)
+    def list(self) -> Iterable[User]:
+        for user in self.backbone.paginate(self.bulk_endpoint):
+            yield User.parse_obj(user)
 
-    def search(self, usernames: Tuple[str]) -> Tuple[User]:
-        response = self.backbone.session.post(self.bulk_endpoint, auth=self.backbone.authenticator, json=usernames)
+    def get(self, *usernames: str) -> Tuple[User]:
+        response = self.backbone.session.post(
+            self.bulk_endpoint, auth=self.backbone.authenticator, json=usernames
+        )
         response.raise_for_status()
-        return tuple(User.parse_obj(user) for user in response.json())
+        return tuple(map(User.parse_obj, response.json()))
 
-    def get(self) -> User:
+    def self(self) -> User:
         response = self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)
         response.raise_for_status()
         return User.parse_obj(response.json())

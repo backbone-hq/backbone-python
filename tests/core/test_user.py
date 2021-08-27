@@ -12,11 +12,11 @@ from .conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
 
 
 @pytest.mark.asyncio
-async def test_user_read(client):
+async def test_user_read_self(client):
     # User read requires a valid token, but no specific permissions
     await client.authenticate(permissions=[])
 
-    user: User = await client.user.get()
+    user: User = await client.user.self()
 
     # Assert properties defined remain intact
     assert user.name == ADMIN_USERNAME

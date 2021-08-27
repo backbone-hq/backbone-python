@@ -5,15 +5,9 @@ import cbor2
 import typer
 
 from backbone import crypto
-from backbone.cli.utilities import (
-    Configuration,
-    client_from_config,
-    get_secret,
-    read_configuration,
-    resolve_configuration,
-    write_configuration,
-)
+from backbone.cli.utilities import client_from_config, get_secret, read_configuration
 from backbone.crypto import encoding
+from backbone.models import User
 from backbone.sync import Permission, PrivateKey, PublicKey
 
 user_cli = typer.Typer()
@@ -36,34 +30,38 @@ def _decode_user_spec(payload):
     return username, public_key
 
 
+def serialize(user: User):
+    typer.echo(f"{user.name} : {user.email_address} : {user.public_key} : {user.permissions}")
+
+
 @user_cli.command("list")
 def user_list():
     """Lists all users in the current workspace"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        for user in client.user.get_all():
-            typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
-
-
-@user_cli.command("search")
-def user_search(username: str):
-    """Search for a particular user's details"""
-    configuration = read_configuration()
-
-    with client_from_config(configuration) as client:
-        user = client.user.search(username)
-        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
+        for user in client.user.list():
+            serialize(user)
 
 
 @user_cli.command("get")
+def user_get(username: str):
+    """View a particular user's details"""
+    configuration = read_configuration()
+
+    with client_from_config(configuration) as client:
+        for user in client.user.get(username):
+            serialize(user)
+
+
+@user_cli.command("self")
 def user_get():
     """View the current user's details"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        user = client.user.get()
-        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
+        user = client.user.self()
+        serialize(user)
 
 
 @user_cli.command("create")
@@ -77,7 +75,7 @@ def user_create(
 
     with client_from_config(configuration) as client:
         user = client.user.create(username, public_key, email_address, permissions)
-        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
+        serialize(user)
         typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
 
 
@@ -98,7 +96,7 @@ def user_import(username: str, payload: str, email_address: Optional[str] = None
 
     with client_from_config(configuration) as client:
         user = client.user.create(username, public_key, email_address, permissions)
-        typer.echo(f"{user.name} : {user.email_address} : {user.permissions} : {user.permissions}")
+        serialize(user)
 
 
 @user_cli.command("generate")
@@ -112,7 +110,8 @@ def user_generate(username: str, password: bool = False):
         secret_key: PrivateKey = PrivateKey.generate()
 
     payload = _encode_user_spec(username, secret_key.public_key)
-    typer.echo(f"Payload: {username} : {payload}", color=typer.colors.GREEN)
+    typer.echo(f"Preparing to create the user {username}")
+    typer.echo(f"Payload: {payload}", color=typer.colors.GREEN)
     typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
 
 

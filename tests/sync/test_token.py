@@ -4,8 +4,8 @@ from httpx import HTTPError
 from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 
-from backbone.models import Token, User
 from backbone.sync import BackboneClient, Permission
+from backbone.models import Token, User
 
 
 @pytest.mark.sync
@@ -46,7 +46,7 @@ def test_client_authentication_minimally_scoped_token(client):
 def test_client_authentication_implicit_max_permissions(client):
     client.authenticate()
 
-    user: User = client.user.get()
+    user: User = client.user.self()
     token: Token = client.token.get()
     assert token.permissions == user.permissions == [Permission.ROOT]
 

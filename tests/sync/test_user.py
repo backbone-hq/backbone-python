@@ -2,8 +2,8 @@ import pytest
 from httpx import HTTPError
 from nacl import encoding
 
-from backbone.models import User
 from backbone.sync import Permission
+from backbone.models import User
 
 from .conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
 
@@ -12,11 +12,11 @@ from .conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
 
 
 @pytest.mark.sync
-def test_user_read(client):
+def test_user_read_self(client):
     # User read requires a valid token, but no specific permissions
     client.authenticate(permissions=[])
 
-    user: User = client.user.get()
+    user: User = client.user.self()
 
     # Assert properties defined remain intact
     assert user.name == ADMIN_USERNAME

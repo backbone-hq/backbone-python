@@ -46,7 +46,7 @@ async def test_client_authentication_minimally_scoped_token(client):
 async def test_client_authentication_implicit_max_permissions(client):
     await client.authenticate()
 
-    user: User = await client.user.get()
+    user: User = await client.user.self()
     token: Token = await client.token.get()
     assert token.permissions == user.permissions == [Permission.ROOT]
 

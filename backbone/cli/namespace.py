@@ -22,17 +22,17 @@ def namespace_list(prefix: str = typer.Argument("")):
 
 @namespace_cli.command("create")
 def namespace_create(key: str, access: List[GrantAccess] = (), isolated: bool = False):
-    """Creates an namespace"""
+    """Create a namespace"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
         client.namespace.create(key, access=access, isolated=isolated)
-        typer.echo(f"{key}")
+        typer.echo(key)
 
 
 @namespace_cli.command("get")
 def namespace_get(key: str):
-    """Obtains an namespace"""
+    """Get a namespace"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
@@ -41,7 +41,7 @@ def namespace_get(key: str):
 
 @namespace_cli.command("remove")
 def namespace_remove(key: str):
-    """Delete an namespace"""
+    """Delete a namespace"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
@@ -54,8 +54,8 @@ def namespace_share(key: str, username: str, access: List[GrantAccess] = ()):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        username = client.user.search(username=username)
-        public_key = PublicKey(username["public_key"], encoder=encoding.URLSafeBase64Encoder)
+        user = client.user.get(username)[0]
+        public_key = PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder)
         typer.echo(client.namespace.grant(key, public_key, access=access))
 
 
@@ -64,6 +64,6 @@ def namespace_revoke(key: str, username: str):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        username = client.user.search(username=username)
-        public_key = PublicKey(username["public_key"], encoder=encoding.URLSafeBase64Encoder)
+        user = client.user.get(username)[0]
+        public_key = PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder)
         typer.echo(client.namespace.revoke(key, public_key))

@@ -86,14 +86,14 @@ class EntryClient:
 
     def grant(self, key: str, *users: str, access: Set[GrantAccess] = None, strict: bool = True) -> dict:
         """
-        Grant users a certain level of access to a namespace
-        :param key: The namespace's key
+        Grant users a certain level of access to an entry
+        :param key: The entry's key
         :param users: A collection of users to grant the level of access to
         :param access: The access package to grant. Grants equivalent access to the current user if `None`
         :param strict: Throw if one of the specified users does not exist
         """
 
-        resolved_users = self.backbone.user.search(users)
+        resolved_users = self.backbone.user.get(*users)
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
@@ -117,11 +117,11 @@ class EntryClient:
         """
         Revoke users access to an entry
         :param key: The entry's key
-        :param users: A collection of users to grant the level of access to
+        :param users: A collection of users to revoke access from
         :param strict: Throw if one of the specified users does not exist
         """
 
-        resolved_users = self.backbone.user.search(users)
+        resolved_users = self.backbone.user.get(*users)
         if strict and len(resolved_users) != len(users):
             raise ValueError
 

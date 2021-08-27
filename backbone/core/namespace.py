@@ -238,8 +238,7 @@ class NamespaceClient:
         :param strict: Throw if one of the specified users does not exist
         """
 
-        resolved_users = await self.backbone.user.search(users)
-
+        resolved_users = await self.backbone.user.get(*users)
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
@@ -262,11 +261,11 @@ class NamespaceClient:
         """
         Revoke users access to a namespace
         :param key: The namespace's key
-        :param users: A collection of users to grant the level of access to
+        :param users: A collection of users to revoke access from
         :param strict: Throw if one of the specified users does not exist
         """
 
-        resolved_users = await self.backbone.user.search(users)
+        resolved_users = await self.backbone.user.get(*users)
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
