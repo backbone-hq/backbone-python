@@ -87,7 +87,7 @@ class BackboneClient:
             except httpx.HTTPError:
                 pass
 
-        self.authenticator = BackboneAuth(client=self, token=token, permissions=[], duration=None)
+        self.authenticator = BackboneAuth(client=self, token=token, permissions=None, duration=86_400)
 
     async def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400):
         """Initialize the client with a scoped token"""
