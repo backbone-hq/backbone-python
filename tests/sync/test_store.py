@@ -12,7 +12,7 @@ from .utilities import random_lower
 @pytest.mark.sync
 def test_entry_creation_read_deletion(client):
     """Entries can be created, read and deleted"""
-    client.authenticate(permissions=[Permission.STORE_USE])
+    client.authenticate()
     key = random_lower(8)
     value = random_lower(16)
 
@@ -39,7 +39,8 @@ def test_entry_creation_read_deletion(client):
 
 @pytest.mark.sync
 def test_entry_expiration(client):
-    client.authenticate(permissions=[Permission.STORE_USE])
+    """Expired entries cannot be queried after their expiration"""
+    client.authenticate()
     key = random_lower(8)
     value = random_lower(16)
 
@@ -58,7 +59,7 @@ def test_entry_expiration(client):
 @pytest.mark.sync
 def test_namespace_creation_read_deletion(client):
     """Namespaces can be created, read and deleted"""
-    client.authenticate(permissions=[Permission.STORE_USE])
+    client.authenticate()
     key = random_lower(8)
 
     # Create the namespace
@@ -85,7 +86,7 @@ def test_namespace_creation_read_deletion(client):
 
 @pytest.mark.sync
 def test_intermediate_namespace_creation(client):
-    # client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    """Creating a new namespace with children"""
     client.authenticate()
 
     namespace_key = random_lower(8)
@@ -101,18 +102,19 @@ def test_intermediate_namespace_creation(client):
 
 @pytest.mark.sync
 def test_intermediate_namespace_deletion(client):
-    client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    """Deleting a namespace with children"""
+    client.authenticate()
 
     namespace_key = random_lower(8)
     child_namespace_key = random_lower(8, prefix=namespace_key)
-    # child_entry_key = random_lower(8, prefix=namespace_key)
+    child_entry_key = random_lower(8, prefix=namespace_key)
 
     # Create the intermediate namespace
     client.namespace.create(namespace_key)
 
     # Create the children
     client.namespace.create(child_namespace_key)
-    # client.entry.set(child_entry_key, random_lower(16))
+    client.entry.set(child_entry_key, random_lower(16))
 
     # Delete the intermediate namespace
     client.namespace.delete(namespace_key)
@@ -121,7 +123,7 @@ def test_intermediate_namespace_deletion(client):
 @pytest.mark.sync
 def test_entry_operations_in_isolated_namespace(client):
     """Entries can be created, read and deleted within an isolated namespace"""
-    client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    client.authenticate()
 
     namespace_key = random_lower(8)
     entry_key = random_lower(8, prefix=namespace_key)
@@ -139,7 +141,7 @@ def test_entry_operations_in_isolated_namespace(client):
 @pytest.mark.sync
 def test_search(client):
     """Entries and Namespace searches return the correct results"""
-    client.authenticate(permissions=[Permission.STORE_USE])
+    client.authenticate()
 
     common_prefix = random_lower(8)
     namespace_keys = [random_lower(8, prefix=common_prefix) for _ in range(3)]
@@ -221,16 +223,16 @@ def test_write_grant_access(client, create_user):
         test_client.entry.set(direct_entry_key, new_value)
 
     # Test account can overwrite the entry when granted write access
-    # client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
-    # test_client.entry.set(indirect_entry_key, new_value)
+    client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE, GrantAccess.READ])
+    test_client.entry.set(indirect_entry_key, new_value)
 
     client.namespace.grant("", test_user, access=[GrantAccess.READ])
     client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.WRITE])
     test_client.entry.set(direct_entry_key, new_value)
 
     # The original user must retain access after the overwrite
-    # client.entry.set(indirect_entry_key, new_value)
-    # client.entry.set(direct_entry_key, new_value)
+    client.entry.set(indirect_entry_key, new_value)
+    client.entry.set(direct_entry_key, new_value)
 
 
 @pytest.mark.sync
@@ -271,8 +273,8 @@ def test_delete_grant_access(client, create_user):
 
 
 @pytest.mark.sync
-def test_multiple_grant_access(client, create_user):
-    """Multiple access types grant all of their respective access"""
+def test_union_grant_access(client, create_user):
+    """A grant with multiple access types grant the union of each of their respective access"""
     client.authenticate()
 
     # Create the test user
@@ -308,3 +310,97 @@ def test_multiple_grant_access(client, create_user):
 
     test_client.entry.delete(direct_entry_key)
     test_client.entry.delete(indirect_entry_key)
+
+
+@pytest.mark.sync
+def test_grant_access_overwrite(client, create_user):
+    """A grant can be overwritten to provide a different grant access without revoking it first"""
+    client.authenticate()
+
+    # Create the test user
+    test_user = random_lower(8)
+    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
+    test_client.authenticate()
+
+    # Define the randomized variables
+    entry_key = random_lower(8)
+    namespace_key = random_lower(8)
+    value = random_lower(16)
+
+    # Create the namespace & entry
+    client.namespace.create(namespace_key)
+    client.entry.set(entry_key, value)
+
+    # Grant the namespace and entry
+    client.namespace.grant(namespace_key, test_user, access=[GrantAccess.READ])
+    client.entry.grant(entry_key, test_user, access=[GrantAccess.READ])
+
+    # Overwrite the access
+    client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
+
+
+@pytest.mark.sync
+def test_grant_sharing(client, create_user):
+    """A user can only grant a level of access that they already have"""
+    client.authenticate()
+
+    # Create the test users
+    test_user_a, test_user_b = random_lower(8), random_lower(8)
+    test_client_a = create_user(test_user_a, permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    test_client_b = create_user(test_user_b, permissions=[Permission.STORE_USE])
+    test_client_a.authenticate()
+    test_client_b.authenticate()
+
+    # Define the randomized variables
+    entry_key = random_lower(8)
+    namespace_key = random_lower(8)
+    value = random_lower(16)
+
+    # Create the namespace & entry
+    client.namespace.create(namespace_key)
+    client.entry.set(entry_key, value)
+
+    # Grant READ access to user A
+    client.namespace.grant(namespace_key, test_user_a, access=[GrantAccess.READ])
+    client.entry.grant(entry_key, test_user_a, access=[GrantAccess.READ])
+
+    # User A can grant READ access to user B
+    test_client_a.namespace.grant(namespace_key, test_user_b, access=[GrantAccess.READ])
+    test_client_a.entry.grant(entry_key, test_user_b, access=[GrantAccess.READ])
+
+    # User A can NOT grant WRITE access to user B
+    with pytest.raises(HTTPError) as _exception:
+        test_client_a.namespace.grant(namespace_key, test_user_b, access=[GrantAccess.WRITE])
+
+    with pytest.raises(HTTPError) as _exception:
+        test_client_a.entry.grant(entry_key, test_user_b, access=[GrantAccess.WRITE])
+
+
+@pytest.mark.sync
+def test_direct_access_does_not_impede_indirect_access(client, create_user):
+    """A user's direct access will not override their indirect access to a resource"""
+    client.authenticate()
+
+    # Create the test user
+    test_user = random_lower(8)
+    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
+    test_client.authenticate()
+
+    # Define the randomized variables
+    namespace_key = random_lower(8)
+    entry_key = random_lower(8)
+    value = random_lower(16)
+
+    # Create the namespace & entry
+    client.namespace.create(namespace_key, access=[GrantAccess.READ, GrantAccess.WRITE])
+    client.entry.set(entry_key, value, access=[GrantAccess.READ, GrantAccess.WRITE])
+
+    # Grant direct WRITE access to both
+    client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
+
+    # Grant indirect READ access to both
+    client.namespace.grant("", test_user, access=[GrantAccess.READ])
+
+    assert test_client.entry.get(entry_key) == value

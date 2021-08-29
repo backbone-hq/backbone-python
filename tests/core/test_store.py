@@ -12,7 +12,7 @@ from .utilities import random_lower
 @pytest.mark.asyncio
 async def test_entry_creation_read_deletion(client):
     """Entries can be created, read and deleted"""
-    await client.authenticate(permissions=[Permission.STORE_USE])
+    await client.authenticate()
     key = random_lower(8)
     value = random_lower(16)
 
@@ -39,7 +39,8 @@ async def test_entry_creation_read_deletion(client):
 
 @pytest.mark.asyncio
 async def test_entry_expiration(client):
-    await client.authenticate(permissions=[Permission.STORE_USE])
+    """Expired entries cannot be queried after their expiration"""
+    await client.authenticate()
     key = random_lower(8)
     value = random_lower(16)
 
@@ -58,7 +59,7 @@ async def test_entry_expiration(client):
 @pytest.mark.asyncio
 async def test_namespace_creation_read_deletion(client):
     """Namespaces can be created, read and deleted"""
-    await client.authenticate(permissions=[Permission.STORE_USE])
+    await client.authenticate()
     key = random_lower(8)
 
     # Create the namespace
@@ -85,7 +86,7 @@ async def test_namespace_creation_read_deletion(client):
 
 @pytest.mark.asyncio
 async def test_intermediate_namespace_creation(client):
-    # await client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    """Creating a new namespace with children"""
     await client.authenticate()
 
     namespace_key = random_lower(8)
@@ -101,18 +102,19 @@ async def test_intermediate_namespace_creation(client):
 
 @pytest.mark.asyncio
 async def test_intermediate_namespace_deletion(client):
-    await client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    """Deleting a namespace with children"""
+    await client.authenticate()
 
     namespace_key = random_lower(8)
     child_namespace_key = random_lower(8, prefix=namespace_key)
-    # child_entry_key = random_lower(8, prefix=namespace_key)
+    child_entry_key = random_lower(8, prefix=namespace_key)
 
     # Create the intermediate namespace
     await client.namespace.create(namespace_key)
 
     # Create the children
     await client.namespace.create(child_namespace_key)
-    # await client.entry.set(child_entry_key, random_lower(16))
+    await client.entry.set(child_entry_key, random_lower(16))
 
     # Delete the intermediate namespace
     await client.namespace.delete(namespace_key)
@@ -121,7 +123,7 @@ async def test_intermediate_namespace_deletion(client):
 @pytest.mark.asyncio
 async def test_entry_operations_in_isolated_namespace(client):
     """Entries can be created, read and deleted within an isolated namespace"""
-    await client.authenticate(permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    await client.authenticate()
 
     namespace_key = random_lower(8)
     entry_key = random_lower(8, prefix=namespace_key)
@@ -139,7 +141,7 @@ async def test_entry_operations_in_isolated_namespace(client):
 @pytest.mark.asyncio
 async def test_search(client):
     """Entries and Namespace searches return the correct results"""
-    await client.authenticate(permissions=[Permission.STORE_USE])
+    await client.authenticate()
 
     common_prefix = random_lower(8)
     namespace_keys = [random_lower(8, prefix=common_prefix) for _ in range(3)]
@@ -221,16 +223,16 @@ async def test_write_grant_access(client, create_user):
         await test_client.entry.set(direct_entry_key, new_value)
 
     # Test account can overwrite the entry when granted write access
-    # await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
-    # await test_client.entry.set(indirect_entry_key, new_value)
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE, GrantAccess.READ])
+    await test_client.entry.set(indirect_entry_key, new_value)
 
     await client.namespace.grant("", test_user, access=[GrantAccess.READ])
     await client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.WRITE])
     await test_client.entry.set(direct_entry_key, new_value)
 
     # The original user must retain access after the overwrite
-    # await client.entry.set(indirect_entry_key, new_value)
-    # await client.entry.set(direct_entry_key, new_value)
+    await client.entry.set(indirect_entry_key, new_value)
+    await client.entry.set(direct_entry_key, new_value)
 
 
 @pytest.mark.asyncio
@@ -271,8 +273,8 @@ async def test_delete_grant_access(client, create_user):
 
 
 @pytest.mark.asyncio
-async def test_multiple_grant_access(client, create_user):
-    """Multiple access types grant all of their respective access"""
+async def test_union_grant_access(client, create_user):
+    """A grant with multiple access types grant the union of each of their respective access"""
     await client.authenticate()
 
     # Create the test user
@@ -308,3 +310,97 @@ async def test_multiple_grant_access(client, create_user):
 
     await test_client.entry.delete(direct_entry_key)
     await test_client.entry.delete(indirect_entry_key)
+
+
+@pytest.mark.asyncio
+async def test_grant_access_overwrite(client, create_user):
+    """A grant can be overwritten to provide a different grant access without revoking it first"""
+    await client.authenticate()
+
+    # Create the test user
+    test_user = random_lower(8)
+    test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
+    await test_client.authenticate()
+
+    # Define the randomized variables
+    entry_key = random_lower(8)
+    namespace_key = random_lower(8)
+    value = random_lower(16)
+
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key)
+    await client.entry.set(entry_key, value)
+
+    # Grant the namespace and entry
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.READ])
+    await client.entry.grant(entry_key, test_user, access=[GrantAccess.READ])
+
+    # Overwrite the access
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    await client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
+
+
+@pytest.mark.asyncio
+async def test_grant_sharing(client, create_user):
+    """A user can only grant a level of access that they already have"""
+    await client.authenticate()
+
+    # Create the test users
+    test_user_a, test_user_b = random_lower(8), random_lower(8)
+    test_client_a = await create_user(test_user_a, permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    test_client_b = await create_user(test_user_b, permissions=[Permission.STORE_USE])
+    await test_client_a.authenticate()
+    await test_client_b.authenticate()
+
+    # Define the randomized variables
+    entry_key = random_lower(8)
+    namespace_key = random_lower(8)
+    value = random_lower(16)
+
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key)
+    await client.entry.set(entry_key, value)
+
+    # Grant READ access to user A
+    await client.namespace.grant(namespace_key, test_user_a, access=[GrantAccess.READ])
+    await client.entry.grant(entry_key, test_user_a, access=[GrantAccess.READ])
+
+    # User A can grant READ access to user B
+    await test_client_a.namespace.grant(namespace_key, test_user_b, access=[GrantAccess.READ])
+    await test_client_a.entry.grant(entry_key, test_user_b, access=[GrantAccess.READ])
+
+    # User A can NOT grant WRITE access to user B
+    with pytest.raises(HTTPError) as _exception:
+        await test_client_a.namespace.grant(namespace_key, test_user_b, access=[GrantAccess.WRITE])
+
+    with pytest.raises(HTTPError) as _exception:
+        await test_client_a.entry.grant(entry_key, test_user_b, access=[GrantAccess.WRITE])
+
+
+@pytest.mark.asyncio
+async def test_direct_access_does_not_impede_indirect_access(client, create_user):
+    """A user's direct access will not override their indirect access to a resource"""
+    await client.authenticate()
+
+    # Create the test user
+    test_user = random_lower(8)
+    test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
+    await test_client.authenticate()
+
+    # Define the randomized variables
+    namespace_key = random_lower(8)
+    entry_key = random_lower(8)
+    value = random_lower(16)
+
+    # Create the namespace & entry
+    await client.namespace.create(namespace_key, access=[GrantAccess.READ, GrantAccess.WRITE])
+    await client.entry.set(entry_key, value, access=[GrantAccess.READ, GrantAccess.WRITE])
+
+    # Grant direct WRITE access to both
+    await client.namespace.grant(namespace_key, test_user, access=[GrantAccess.WRITE])
+    await client.entry.grant(entry_key, test_user, access=[GrantAccess.WRITE])
+
+    # Grant indirect READ access to both
+    await client.namespace.grant("", test_user, access=[GrantAccess.READ])
+
+    assert await test_client.entry.get(entry_key) == value
