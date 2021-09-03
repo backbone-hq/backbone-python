@@ -31,6 +31,7 @@ _ASYNC_TO_SYNC = compile_substitutions(
         "@pytest.mark.asyncio": "@pytest.mark.sync",
         # Backbone
         "backbone.core": "backbone.sync",
+        "tests.core": "tests.sync",
         # HTTPx
         "async_auth_flow": "auth_flow",
         "httpx.AsyncClient": "httpx.Client",

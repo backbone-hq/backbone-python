@@ -6,8 +6,7 @@ from nacl import encoding
 from nacl.public import PrivateKey
 
 from backbone.sync import BackboneClient, Permission
-
-from .utilities import random_lower
+from tests.sync.utilities import random_lower
 
 WORKSPACE_NAME = random_lower(8)
 WORKSPACE_DISPLAY_NAME = "Backbone Testing Workspace"

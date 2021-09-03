@@ -5,8 +5,7 @@ from httpx import HTTPError
 from nacl import encoding
 
 from backbone.models import GrantAccess, Permission
-
-from .utilities import random_lower
+from tests.core.utilities import random_lower
 
 
 @pytest.mark.asyncio
