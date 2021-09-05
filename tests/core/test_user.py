@@ -1,11 +1,12 @@
 import pytest
 from httpx import HTTPError
 from nacl import encoding
+from nacl.exceptions import CryptoError
 
 from backbone.core import Permission
 from backbone.models import User
-
-from .conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
+from tests.core.conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
+from tests.core.utilities import random_lower
 
 # TODO: find_user endpoint
 # TODO: user pagination endpoint
@@ -30,9 +31,20 @@ async def test_user_read_self(client):
 async def test_user_creation_and_deletion(client, create_user):
     await client.authenticate(permissions=[Permission.USER_MANAGE])
 
-    test_client = await create_user(username="test", permissions=[])
+    test_user = random_lower(8)
+    test_client = await create_user(username=test_user, permissions=[])
     await test_client.authenticate()
-    await test_client.user.delete(force_delete=True)
+
+    # Test user cannot delete themselves
+    with pytest.raises(HTTPError):
+        await test_client.user.delete(username=test_user, force=True)
+
+    # User with USER_MANAGE can delete the user
+    await client.user.delete(username=test_user, force=True)
+
+    # Test user cannot authenticate
+    with pytest.raises(CryptoError):
+        await test_client.authenticate()
 
 
 @pytest.mark.asyncio

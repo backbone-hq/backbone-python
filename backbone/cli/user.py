@@ -119,9 +119,9 @@ def user_generate(username: str, password: bool = typer.Option(False, "--passwor
 
 
 @user_cli.command("delete")
-def user_delete(force: bool = False):
+def user_delete(username: str, force: bool = False):
     """Delete the current user account"""
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        client.user.delete(force_delete=force)
+        client.user.delete(username=username, force=force)

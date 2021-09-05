@@ -66,8 +66,8 @@ class UserClient:
             permissions=permissions,
         )
 
-    async def delete(self, force_delete: bool = False) -> None:
+    async def delete(self, username: str, force: bool = False) -> None:
         response = await self.backbone.session.delete(
-            self.endpoint, params={"force_delete": force_delete}, auth=self.backbone.authenticator
+            self.endpoint, params={"username": username, "force": force}, auth=self.backbone.authenticator
         )
         response.raise_for_status()
