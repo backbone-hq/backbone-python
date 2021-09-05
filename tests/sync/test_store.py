@@ -138,27 +138,6 @@ def test_entry_operations_in_isolated_namespace(client):
 
 
 @pytest.mark.sync
-def test_search(client):
-    """Entries and Namespace searches return the correct results"""
-    client.authenticate()
-
-    common_prefix = random_lower(8)
-    namespace_keys = [random_lower(8, prefix=common_prefix) for _ in range(3)]
-    for key in namespace_keys:
-        client.namespace.create(key)
-
-    entry_keys = [f"{key}++" for key in namespace_keys]
-    for key in entry_keys:
-        client.entry.set(key, "dummy")
-
-    namespace_results = [item for item in client.namespace.search(common_prefix)]
-    assert namespace_results == namespace_keys
-
-    entry_results = [item for item in client.entry.search(common_prefix)]
-    assert entry_results == entry_keys
-
-
-@pytest.mark.sync
 def test_read_grant_access(client, create_user):
     """Direct READ grant access allows the entry/namespace to be read and decrypted"""
     client.authenticate()

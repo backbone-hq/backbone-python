@@ -7,8 +7,6 @@ from backbone.models import GrantAccess
 
 class EntryClient:
     endpoint = "entry"
-    bulk_endpoint = "entries"
-    chain_endpoint = "chain"
     grant_endpoint = "grant/entry"
 
     def __init__(self, client):
@@ -41,10 +39,6 @@ class EntryClient:
         """
         ciphertext, grant, grant_sk = self.__unroll_chain(key)
         return crypto.decrypt_entry(ciphertext, grant["value"].encode(), grant_sk).decode()
-
-    def search(self, prefix: str) -> Iterable[str]:
-        for item in self.backbone.paginate(f"{self.bulk_endpoint}/{prefix}"):
-            yield item
 
     def set(self, key: str, value: str, access: List[GrantAccess] = (), duration: Optional[int] = None) -> dict:
         chain = self.backbone.namespace.get_chain(key)
@@ -99,6 +93,7 @@ class EntryClient:
 
         _, grant, grant_sk = self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
+        access = [item.value for item in access] if access is not None else grant["access"]
 
         grants = [
             {
@@ -106,7 +101,7 @@ class EntryClient:
                 "value": crypto.create_entry_grant(
                     entry_key, PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder)
                 ).decode(),
-                "access": [level.value for level in access] or grant["access"],
+                "access": access,
             }
             for user in resolved_users
         ]

@@ -7,7 +7,6 @@ from backbone.models import GrantAccess
 
 class NamespaceClient:
     endpoint = "namespace"
-    bulk_endpoint = "namespaces"
     chain_endpoint = "chain"
     grant_endpoint = "grant/namespace"
     child_namespace_endpoint = "child/namespace"
@@ -50,10 +49,6 @@ class NamespaceClient:
 
     async def get_child_entries(self, prefix: str) -> AsyncIterable[dict]:
         async for item in self.backbone.paginate(f"{self.child_entry_endpoint}/{prefix}"):
-            yield item
-
-    async def search(self, prefix: str) -> AsyncIterable[str]:
-        async for item in self.backbone.paginate(f"{self.bulk_endpoint}/{prefix}"):
             yield item
 
     async def create(self, key: str, *, access: List[GrantAccess] = (), isolated: bool = False) -> dict:
@@ -243,6 +238,7 @@ class NamespaceClient:
             raise ValueError
 
         namespace_secret_key, namespace_grant = await self.__unroll_chain(key)
+        access = [item.value for item in access] if access is not None else namespace_grant["access"]
 
         grants = [
             {
@@ -250,7 +246,7 @@ class NamespaceClient:
                 "value": crypto.encrypt_grant(
                     PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder), namespace_secret_key
                 ).decode(),
-                "access": [level.value for level in access] or namespace_grant["access"],
+                "access": access,
             }
             for user in resolved_users
         ]

@@ -66,7 +66,10 @@ def user_get():
 
 @user_cli.command("create")
 def user_create(
-    username: str, email_address: Optional[str] = None, permissions: List[Permission] = (), password: bool = False
+    username: str,
+    email_address: Optional[str] = None,
+    permissions: List[Permission] = (),
+    password: bool = typer.Option(False, "--password"),
 ):
     """Create a new user account in the current workspace"""
     configuration = read_configuration()
@@ -100,7 +103,7 @@ def user_import(username: str, payload: str, email_address: Optional[str] = None
 
 
 @user_cli.command("generate")
-def user_generate(username: str, password: bool = False):
+def user_generate(username: str, password: bool = typer.Option(False, "--password")):
     """Generate the user's credential pair"""
 
     if password:

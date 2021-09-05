@@ -2,7 +2,7 @@ from enum import Enum
 from functools import partial
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, conint, conset, constr
+from pydantic import BaseModel, Field, conint, conlist, conset, constr
 
 # Primitive types
 safe_base64 = partial(constr, strip_whitespace=True, regex=r"[a-zA-Z0-9-_]+={0,3}")
@@ -88,7 +88,7 @@ class Chain(BackboneModel):
 
 class NamespaceDefinition(BackboneModel):
     public_key: public_key()
-    grants: List[NamespaceGrant]
+    grants: conlist(NamespaceGrant, min_items=1)
 
 
 class Namespace(NamespaceDefinition, Chain):
@@ -97,7 +97,7 @@ class Namespace(NamespaceDefinition, Chain):
 
 class EntryDefinition(BackboneModel):
     value: safe_base64(max_length=4096)
-    grants: List[EntryGrant]
+    grants: conlist(EntryGrant, min_items=1)
     duration: Optional[entry_duration] = Field(default=None)
 
 
@@ -149,23 +149,23 @@ class Action(Enum):
 
     # Entry
     ENTRY_GET = "entry_get"
-    ENTRY_SEARCH = "entry_search"
     ENTRY_CREATE = "entry_create"
     ENTRY_DELETE = "entry_delete"
+    ENTRY_LIST = "entry_list"
 
     # Entry Grants
-    ENTRY_GRANT_CREATE = "entry_grant"
-    ENTRY_GRANT_REVOKE = "entry_revoke"
+    ENTRY_GRANT = "entry_grant"
+    ENTRY_REVOKE = "entry_revoke"
 
     # Namespace
     NAMESPACE_GET = "namespace_get"
-    NAMESPACE_SEARCH = "namespace_search"
     NAMESPACE_CREATE = "namespace_create"
     NAMESPACE_DELETE = "namespace_delete"
+    NAMESPACE_LIST = "namespace_list"
 
     # Namespace Grants
-    NAMESPACE_GRANT_CREATE = "namespace_grant"
-    NAMESPACE_GRANT_REVOKE = "namespace_revoke"
+    NAMESPACE_GRANT = "namespace_grant"
+    NAMESPACE_REVOKE = "namespace_revoke"
 
     # Chain
     CHAIN_GET = "chain_get"

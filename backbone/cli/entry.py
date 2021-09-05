@@ -14,8 +14,8 @@ def entry_list(prefix: str = typer.Argument("")):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        for entry in client.entry.search(prefix):
-            typer.echo(entry)
+        for entry in client.namespace.get_child_entries(prefix):
+            typer.echo(entry["key"])
 
 
 @entry_cli.command("set")

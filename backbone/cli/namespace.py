@@ -16,8 +16,8 @@ def namespace_list(prefix: str = typer.Argument("")):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        for namespace in client.namespace.search(prefix):
-            typer.echo(namespace)
+        for namespace in client.namespace.get_child_namespaces(prefix):
+            typer.echo(namespace["key"])
 
 
 @namespace_cli.command("create")

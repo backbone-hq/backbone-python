@@ -25,7 +25,9 @@ backbone_cli.add_typer(workspace_cli, name="workspace")
 
 
 @backbone_cli.command("authenticate")
-def authenticate(workspace: str, username: str, duration: int = 86_400, password: bool = False):
+def authenticate(
+    workspace: str, username: str, duration: int = 86_400, password: bool = typer.Option(False, "--password")
+):
     configuration = resolve_configuration(
         workspace=workspace,
         username=username,

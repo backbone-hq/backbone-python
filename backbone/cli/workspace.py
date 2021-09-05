@@ -13,7 +13,13 @@ workspace_cli = typer.Typer()
 
 
 @workspace_cli.command("create")
-def workspace_create(workspace_name: str, display_name: str, username: str, email_address: str, password: bool = False):
+def workspace_create(
+    workspace_name: str,
+    display_name: str,
+    username: str,
+    email_address: str,
+    password: bool = typer.Option(False, "--password"),
+):
     """Create a new workspace and its associated admin account"""
     configuration = read_configuration()
 
