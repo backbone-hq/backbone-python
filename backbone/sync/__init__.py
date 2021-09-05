@@ -32,8 +32,8 @@ class BackboneAuth(httpx.Auth):
 
 
 class BackboneClient:
-    # _base_url = f"https://backbone.dev/v{__version__}/"
-    _base_url = f"http://localhost:8000/v{__version__}/"
+    _base_url = f"https://backbone.dev/v{__version__}/"
+    # _base_url = f"http://localhost:8000/v{__version__}/"
 
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
         # Backbone parameters

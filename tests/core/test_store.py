@@ -382,3 +382,43 @@ async def test_direct_access_does_not_impede_indirect_access(client, create_user
     await client.namespace.grant("", test_user, access=[GrantAccess.READ])
 
     assert await test_client.entry.get(entry_key) == value
+
+
+@pytest.mark.asyncio
+async def test_child_enumeration(client, create_user):
+    """Enumerating child entries and namespaces works as expected"""
+    await client.authenticate()
+
+    # Create the test user
+    test_user = random_lower(8)
+    test_client = await create_user(test_user, permissions=[Permission.STORE_USE])
+    await test_client.authenticate()
+
+    # Define randomized variables
+    parent_namespace_key = random_lower(8)
+    namespace_keys = [random_lower(8, prefix=parent_namespace_key) for _ in range(3)]
+    entry_keys = [random_lower(8, prefix=parent_namespace_key) for _ in range(3)]
+
+    await client.namespace.create(parent_namespace_key)
+
+    # Create the resources
+    for key in namespace_keys:
+        await client.namespace.create(key)
+
+    for key in entry_keys:
+        await client.entry.set(key, "dummy")
+
+    # Querying children by prefix returns the original results
+    assert [
+        namespace["key"] async for namespace in client.namespace.get_child_namespaces(parent_namespace_key)
+    ] == namespace_keys
+    assert [entry["key"] async for entry in client.namespace.get_child_entries(parent_namespace_key)] == entry_keys
+
+    # An unprivileged user querying throws a 404
+    with pytest.raises(HTTPError) as _exception:
+        async for _ in test_client.namespace.get_child_namespaces(parent_namespace_key):
+            pass
+
+    with pytest.raises(HTTPError) as _exception:
+        async for _ in test_client.namespace.get_child_entries(parent_namespace_key):
+            pass
