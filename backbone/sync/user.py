@@ -1,7 +1,7 @@
 from typing import Iterable, List, Optional, Tuple
 
 from backbone.crypto import PrivateKey, PublicKey, derive_password_key, encoding
-from backbone.models import Permission, User
+from backbone.models import Permission, User, UserPermissionModification
 
 
 class UserClient:
@@ -65,6 +65,15 @@ class UserClient:
             email_address=email_address,
             permissions=permissions,
         )
+
+    def modify(self, username: str, permissions: List[Permission] = ()) -> User:
+        response = self.backbone.session.patch(
+            self.endpoint,
+            content=UserPermissionModification(name=username, permissions=permissions).json(),
+            auth=self.backbone.authenticator,
+        )
+        response.raise_for_status()
+        return User.parse_obj(response.json())
 
     def delete(self, username: str, force: bool = False) -> None:
         response = self.backbone.session.delete(

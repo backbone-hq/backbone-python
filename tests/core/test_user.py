@@ -13,16 +13,21 @@ from tests.core.utilities import random_lower
 
 
 @pytest.mark.asyncio
-async def test_user_read_self(client):
+async def test_user_read(client, create_user):
+    await client.authenticate(permissions=[Permission.USER_MANAGE])
+
+    # Ensure test user querying itself is equivalent to other users querying the test user
+    test_user = random_lower(8)
+    test_client = await create_user(username=test_user, permissions=[])
+
+    await test_client.authenticate()
+    assert await test_client.user.self().name == await client.user.get(test_user)[0].name
+
     # User read requires a valid token, but no specific permissions
     await client.authenticate(permissions=[])
-
     user: User = await client.user.self()
-
-    # Assert properties defined remain intact
     assert user.name == ADMIN_USERNAME
     assert user.email_address == ADMIN_EMAIL
-    # TODO: Return a PublicKey object
     assert user.public_key == ADMIN_SK.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
     assert user.permissions == [Permission.ROOT]
 
@@ -45,6 +50,29 @@ async def test_user_creation_and_deletion(client, create_user):
     # Test user cannot authenticate
     with pytest.raises(CryptoError):
         await test_client.authenticate()
+
+
+@pytest.mark.asyncio
+async def test_user_permission_modification(client, create_user):
+    await client.authenticate()
+
+    test_user = random_lower(8)
+    test_client = await create_user(username=test_user, permissions=[Permission.STORE_USE])
+    await test_client.authenticate()
+
+    # Validate the test user's privileges
+    user: User = await test_client.user.self()
+    assert user.permissions == [Permission.STORE_USE]
+
+    # De-escalate the test user's privileges
+    await client.user.modify(test_user, permissions=[])
+    user: User = await test_client.user.self()
+    assert user.permissions == []
+
+    # Re-escalate the test user's privileges
+    await client.user.modify(test_user, permissions=[Permission.ROOT])
+    user: User = await test_client.user.self()
+    assert user.permissions == [Permission.ROOT]
 
 
 @pytest.mark.asyncio

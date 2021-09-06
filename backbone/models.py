@@ -60,6 +60,11 @@ class User(BackboneModel):
     permissions: List[Permission]
 
 
+class UserPermissionModification(BackboneModel):
+    name: constr(min_length=1, max_length=128)
+    permissions: List[Permission]
+
+
 class Workspace(BackboneModel):
     name: constr(min_length=1, max_length=128)
     display_name: constr(min_length=1, max_length=128)
@@ -105,18 +110,24 @@ class Entry(EntryDefinition, Chain):
     pass
 
 
+class WorkspaceCreation(BackboneModel):
+    workspace: Workspace
+    user: User
+    namespace: NamespaceDefinition
+
+
 class Token(BackboneModel):
     hidden_token: safe_base64()
     duration: token_duration
     permissions: Optional[List[Permission]]
 
 
-class TokenDerivationRequest(BackboneModel):
+class TokenDerivation(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
     duration: token_duration = Field(default=86_400)
 
 
-class TokenAuthenticationRequest(BackboneModel):
+class TokenAuthentication(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
     workspace: constr(min_length=1, max_length=128)
     username: constr(min_length=1, max_length=128)
@@ -139,6 +150,7 @@ class Action(Enum):
     USER_GET = "user_get"
     USER_CREATE = "user_create"
     USER_DELETE = "user_delete"
+    USER_MODIFY = "user_modify"
 
     # Token
     TOKENS_GET = "tokens_get"

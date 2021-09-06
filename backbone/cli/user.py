@@ -55,7 +55,7 @@ def user_get(username: str):
 
 
 @user_cli.command("self")
-def user_get():
+def user_get_self():
     """View the current user's details"""
     configuration = read_configuration()
 
@@ -116,6 +116,15 @@ def user_generate(username: str, password: bool = typer.Option(False, "--passwor
     typer.echo(f"Preparing to create the user {username}")
     typer.echo(f"Payload: {payload}", color=typer.colors.GREEN)
     typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
+
+
+@user_cli.command("modify")
+def user_modify(username: str, permissions: List[Permission] = ()):
+    """Modify an account's permissions"""
+    configuration = read_configuration()
+
+    with client_from_config(configuration) as client:
+        client.user.modify(username=username, permissions=permissions)
 
 
 @user_cli.command("delete")

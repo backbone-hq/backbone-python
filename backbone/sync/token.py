@@ -3,7 +3,7 @@ from typing import List, Optional
 from httpx import Response
 
 from backbone.crypto import decrypt_hidden_token
-from backbone.models import Permission, Token, TokenAuthenticationRequest, TokenDerivationRequest
+from backbone.models import Permission, Token, TokenAuthentication, TokenDerivation
 
 
 class TokenClient:
@@ -25,7 +25,7 @@ class TokenClient:
     def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         response = self.backbone.session.post(
             self.endpoint,
-            content=TokenAuthenticationRequest(
+            content=TokenAuthentication(
                 workspace=self.backbone._workspace_name,
                 username=self.backbone._username,
                 permissions=permissions,
@@ -38,7 +38,7 @@ class TokenClient:
     def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         response = self.backbone.session.patch(
             self.endpoint,
-            content=TokenDerivationRequest(permissions=permissions, duration=duration).json(),
+            content=TokenDerivation(permissions=permissions, duration=duration).json(),
             auth=self.backbone.authenticator,
         )
         response.raise_for_status()
