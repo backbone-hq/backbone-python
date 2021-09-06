@@ -21,7 +21,7 @@ def test_user_read(client, create_user):
     test_client = create_user(username=test_user, permissions=[])
 
     test_client.authenticate()
-    assert test_client.user.self().name == client.user.get(test_user)[0].name
+    assert (test_client.user.self()).name == (client.user.get(test_user))[0].name
 
     # User read requires a valid token, but no specific permissions
     client.authenticate(permissions=[])
