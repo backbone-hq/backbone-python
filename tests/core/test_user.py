@@ -21,7 +21,7 @@ async def test_user_read(client, create_user):
     test_client = await create_user(username=test_user, permissions=[])
 
     await test_client.authenticate()
-    assert await test_client.user.self().name == await client.user.get(test_user)[0].name
+    assert (await test_client.user.self()).name == (await client.user.get(test_user))[0].name
 
     # User read requires a valid token, but no specific permissions
     await client.authenticate(permissions=[])
