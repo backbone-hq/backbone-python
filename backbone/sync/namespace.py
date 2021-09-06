@@ -219,7 +219,7 @@ class NamespaceClient:
 
     def grant_raw(self, key: str, *grants):
         response = self.backbone.session.post(
-            f"{self.grant_endpoint}/{key}", json=grants, auth=self.backbone.authenticator
+            f"{self.grant_endpoint}/{key}", json=list(grants), auth=self.backbone.authenticator
         )
         response.raise_for_status()
         return response.json()
@@ -238,7 +238,7 @@ class NamespaceClient:
             raise ValueError
 
         namespace_secret_key, namespace_grant = self.__unroll_chain(key)
-        access = [item.value for item in access] if access is not None else namespace_grant["access"]
+        access = [item.value for item in access] if access else namespace_grant["access"]
 
         grants = [
             {

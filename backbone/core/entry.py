@@ -93,7 +93,7 @@ class EntryClient:
 
         _, grant, grant_sk = await self.__unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
-        access = [item.value for item in access] if access is not None else grant["access"]
+        access = [item.value for item in access] if access else grant["access"]
 
         grants = [
             {

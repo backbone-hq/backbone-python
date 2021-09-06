@@ -54,9 +54,7 @@ def namespace_share(key: str, username: str, access: List[GrantAccess] = ()):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        user = client.user.get(username)[0]
-        public_key = PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder)
-        typer.echo(client.namespace.grant(key, public_key, access=access))
+        typer.echo(client.namespace.grant(key, username, access=access))
 
 
 @namespace_cli.command("revoke")
@@ -64,6 +62,4 @@ def namespace_revoke(key: str, username: str):
     configuration = read_configuration()
 
     with client_from_config(configuration) as client:
-        user = client.user.get(username)[0]
-        public_key = PublicKey(user.public_key, encoder=encoding.URLSafeBase64Encoder)
-        typer.echo(client.namespace.revoke(key, public_key))
+        typer.echo(client.namespace.revoke(key, username))
