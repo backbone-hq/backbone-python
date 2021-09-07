@@ -8,9 +8,6 @@ from backbone.models import User
 from tests.sync.conftest import ADMIN_EMAIL, ADMIN_SK, ADMIN_USERNAME
 from tests.sync.utilities import random_lower
 
-# TODO: find_user endpoint
-# TODO: user pagination endpoint
-
 
 @pytest.mark.sync
 def test_user_read(client, create_user):
@@ -73,6 +70,33 @@ def test_user_permission_modification(client, create_user):
     client.user.modify(test_user, permissions=[Permission.ROOT])
     user: User = test_client.user.self()
     assert user.permissions == [Permission.ROOT]
+
+
+@pytest.mark.sync
+def test_user_get(client, create_user):
+    client.authenticate()
+
+    test_user = random_lower(8)
+    create_user(username=test_user, permissions=[Permission.STORE_USE])
+
+    result = client.user.get(test_user)
+    assert len(result) == 1
+    user = result[0]
+    assert user.name == test_user
+    assert user.permissions == [Permission.STORE_USE]
+    assert user.email_address is None
+
+
+@pytest.mark.sync
+def test_user_list(client, create_user):
+    client.authenticate()
+
+    users = [random_lower(8) for _ in range(9)]
+    for user in users:
+        create_user(username=user, permissions=[])
+
+    result = [user for user in client.user.list()]
+    assert {user.name for user in result} == {*users, ADMIN_USERNAME}
 
 
 @pytest.mark.sync
