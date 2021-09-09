@@ -73,6 +73,27 @@ async def test_user_permission_modification(client, create_user):
 
 
 @pytest.mark.asyncio
+async def test_user_permission_modification_requires_at_least_one_root_user(client, create_user):
+    await client.authenticate()
+
+    # Can't de-escalate permissions as the sole root user
+    with pytest.raises(HTTPError):
+        await client.user.modify(ADMIN_USERNAME, permissions=[Permission.STORE_USE])
+
+    test_user = random_lower(8)
+    test_client = await create_user(username=test_user, permissions=[Permission.ROOT])
+    await test_client.authenticate()
+
+    await client.user.modify(ADMIN_USERNAME, permissions=[Permission.STORE_USE])
+
+    self = await client.user.self()
+    assert self.permissions == [Permission.STORE_USE]
+
+    # Revert admin account's root permission
+    await test_client.user.modify(ADMIN_USERNAME, permissions=[Permission.ROOT])
+
+
+@pytest.mark.asyncio
 async def test_user_get(client, create_user):
     await client.authenticate()
 
