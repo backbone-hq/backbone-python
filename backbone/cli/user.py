@@ -114,6 +114,7 @@ def user_generate(username: str, email_address: Optional[str] = None, password: 
     payload = _encode_user_spec(username, email_address, secret_key.public_key)
     typer.echo(f"Preparing to create the user {username}")
     typer.echo(f"Payload: {payload}", color=typer.colors.GREEN)
+    typer.echo(f"Public Key: {secret_key.public_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.GREEN)
     typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
 
 
