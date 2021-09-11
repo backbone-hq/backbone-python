@@ -45,13 +45,6 @@ class UserClient:
         response.raise_for_status()
         return User.parse_obj(response.json())
 
-    async def create_self(self, permissions: List[Permission] = ()) -> User:
-        return await self.create(
-            username=self.backbone._username,
-            public_key=self.backbone._public_key,
-            permissions=permissions,
-        )
-
     async def create_from_credentials(self, username: str, password: str, permissions: List[Permission] = ()) -> User:
         derived_public_key = PrivateKey(derive_password_key(identity=username, password=password)).public_key
         return await self.create(
