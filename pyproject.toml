@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "backbone"
-version = "0.2.0"
+version = "0.3.0"
 description = "Tools for development with Backbone"
 authors = ["Backbone Developers <inbox@backbone.dev>"]
 license = "Proprietary"
