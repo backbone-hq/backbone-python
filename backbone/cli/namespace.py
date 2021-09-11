@@ -30,15 +30,6 @@ def namespace_create(key: str, access: List[GrantAccess] = (), isolated: bool = 
         typer.echo(key)
 
 
-@namespace_cli.command("get")
-def namespace_get(key: str):
-    """Get a namespace"""
-    configuration = read_configuration()
-
-    with client_from_config(configuration) as client:
-        typer.echo(client.namespace.get(key))
-
-
 @namespace_cli.command("delete")
 def namespace_delete(key: str):
     """Delete a namespace"""
