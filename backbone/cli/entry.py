@@ -37,8 +37,8 @@ def entry_get(key: str):
         typer.echo(client.entry.get(key))
 
 
-@entry_cli.command("remove")
-def entry_remove(key: str):
+@entry_cli.command("delete")
+def entry_delete(key: str):
     """Delete an entry"""
     configuration = read_configuration()
 

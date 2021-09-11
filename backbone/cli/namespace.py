@@ -39,8 +39,8 @@ def namespace_get(key: str):
         typer.echo(client.namespace.get(key))
 
 
-@namespace_cli.command("remove")
-def namespace_remove(key: str):
+@namespace_cli.command("delete")
+def namespace_delete(key: str):
     """Delete a namespace"""
     configuration = read_configuration()
 
