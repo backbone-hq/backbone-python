@@ -13,7 +13,7 @@ class WorkspaceClient:
         response.raise_for_status()
         return Workspace.parse_obj(response.json())
 
-    async def create(self, display_name: str, email_address: str) -> Workspace:
+    async def create(self, display_name: str) -> Workspace:
         # Generate root namespace keypair
         namespace_key: PrivateKey = PrivateKey.generate()
         namespace_grant = encrypt_grant(self.backbone._secret_key.public_key, namespace_key)
@@ -24,7 +24,6 @@ class WorkspaceClient:
                 "workspace": {"name": self.backbone._workspace_name, "display_name": display_name},
                 "user": {
                     "name": self.backbone._username,
-                    "email_address": email_address,
                     "public_key": self.backbone._secret_key.public_key.encode(
                         encoder=encoding.URLSafeBase64Encoder
                     ).decode(),

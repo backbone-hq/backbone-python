@@ -9,9 +9,7 @@ from backbone.models import Token, User
 
 
 @pytest.mark.asyncio
-async def test_fake_token(client, create_user):
-    await client.authenticate()
-
+async def test_fake_token(client):
     # Create a client for a nonexistent account
     fake_client = BackboneClient(workspace=client._workspace_name, username="fake", secret_key=PrivateKey.generate())
 
@@ -28,10 +26,8 @@ async def test_client_authentication_explicit_permissions(client):
     # Get the existing token
     token: Token = await client.token.get()
 
-    # Validate that the requested permissions exist on the token
-    assert token.duration
-    assert Permission.STORE_USE in token.permissions
-    assert Permission.STORE_SHARE not in token.permissions
+    # Validate that only the requested permissions exist on the token
+    assert token.permissions == [Permission.STORE_USE]
 
 
 @pytest.mark.asyncio
@@ -44,11 +40,10 @@ async def test_client_authentication_minimally_scoped_token(client):
 
 @pytest.mark.asyncio
 async def test_client_authentication_implicit_max_permissions(client):
-    await client.authenticate()
-
     user: User = await client.user.self()
     token: Token = await client.token.get()
-    assert token.permissions == user.permissions == [Permission.ROOT]
+    assert token.permissions == user.permissions
+    assert token.permissions == [Permission.ROOT]
 
 
 @pytest.mark.asyncio
@@ -62,7 +57,6 @@ async def test_client_authentication_zero_or_negative_token_duration_fails(clien
 
 @pytest.mark.asyncio
 async def test_token_deauthentication(client):
-    await client.authenticate()
     await client.deauthenticate()
 
     with pytest.raises(HTTPError) as _exception:
@@ -71,11 +65,11 @@ async def test_token_deauthentication(client):
 
 @pytest.mark.asyncio
 async def test_token_derivation_scope_reduction(client):
-    # Authenticate for 86_400 seconds
-    await client.authenticate(permissions=[Permission.ROOT], duration=86_400)
+    # Authenticate for 300 seconds
+    await client.authenticate(duration=300)
 
-    # Derive scoped token for 86_300 seconds
-    store_read_token = await client.token.derive(permissions=[Permission.STORE_USE], duration=86_300)
+    # Derive scoped token for 240 seconds
+    store_read_token = await client.token.derive(permissions=[Permission.STORE_USE], duration=240)
     assert len(store_read_token) == 24
 
 

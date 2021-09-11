@@ -8,13 +8,6 @@ from pydantic import BaseModel, Field, conint, conlist, conset, constr
 safe_base64 = partial(constr, strip_whitespace=True, regex=r"[a-zA-Z0-9-_]+={0,3}")
 
 # Semantic types
-email_address = partial(
-    constr,
-    strip_whitespace=True,
-    regex=r"[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+",
-    min_length=8,
-    max_length=128,
-)
 public_key = partial(safe_base64, min_length=44, max_length=44)
 
 # Store primitives
@@ -55,7 +48,6 @@ class BackboneModel(BaseModel):
 
 class User(BackboneModel):
     name: constr(min_length=1, max_length=128)
-    email_address: Optional[email_address()]
     public_key: public_key()
     permissions: List[Permission]
 

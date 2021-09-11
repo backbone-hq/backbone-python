@@ -17,7 +17,6 @@ def workspace_create(
     workspace_name: str,
     display_name: str,
     username: str,
-    email_address: str,
     password: bool = typer.Option(False, "--password"),
 ):
     """Create a new workspace and its associated admin account"""
@@ -29,7 +28,7 @@ def workspace_create(
     configuration[Configuration.USERNAME] = username
 
     with client_from_config(configuration) as client:
-        workspace = client.workspace.create(display_name, email_address)
+        workspace = client.workspace.create(display_name)
         typer.echo(f"{workspace.name}: {workspace.display_name}")
         token = client.token.authenticate(permissions=None)
 

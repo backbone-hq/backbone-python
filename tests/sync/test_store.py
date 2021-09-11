@@ -11,7 +11,6 @@ from tests.sync.utilities import random_lower
 @pytest.mark.sync
 def test_entry_creation_read_deletion(client):
     """Entries can be created, read and deleted"""
-    client.authenticate()
     key = random_lower(8)
     value = random_lower(16)
 
@@ -39,7 +38,6 @@ def test_entry_creation_read_deletion(client):
 @pytest.mark.sync
 def test_entry_expiration(client):
     """Expired entries cannot be queried after their expiration"""
-    client.authenticate()
     key = random_lower(8)
     value = random_lower(16)
 
@@ -58,7 +56,6 @@ def test_entry_expiration(client):
 @pytest.mark.sync
 def test_namespace_creation_read_deletion(client):
     """Namespaces can be created, read and deleted"""
-    client.authenticate()
     key = random_lower(8)
 
     # Create the namespace
@@ -86,8 +83,6 @@ def test_namespace_creation_read_deletion(client):
 @pytest.mark.sync
 def test_intermediate_namespace_creation(client):
     """Creating a new namespace with children"""
-    client.authenticate()
-
     namespace_key = random_lower(8)
     entry_key = random_lower(8, prefix=namespace_key)
     value = random_lower(16)
@@ -102,8 +97,6 @@ def test_intermediate_namespace_creation(client):
 @pytest.mark.sync
 def test_intermediate_namespace_deletion(client):
     """Deleting a namespace with children"""
-    client.authenticate()
-
     namespace_key = random_lower(8)
     child_namespace_key = random_lower(8, prefix=namespace_key)
     child_entry_key = random_lower(8, prefix=namespace_key)
@@ -122,8 +115,6 @@ def test_intermediate_namespace_deletion(client):
 @pytest.mark.sync
 def test_entry_operations_in_isolated_namespace(client):
     """Entries can be created, read and deleted within an isolated namespace"""
-    client.authenticate()
-
     namespace_key = random_lower(8)
     entry_key = random_lower(8, prefix=namespace_key)
     entry_value = random_lower(16)
@@ -140,12 +131,8 @@ def test_entry_operations_in_isolated_namespace(client):
 @pytest.mark.sync
 def test_read_grant_access(client, create_user):
     """Direct READ grant access allows the entry/namespace to be read and decrypted"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     namespace_key = random_lower(8)
@@ -177,12 +164,8 @@ def test_read_grant_access(client, create_user):
 @pytest.mark.sync
 def test_write_grant_access(client, create_user):
     """Direct WRITE grant access allows the entry/namespace to be overwritten"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     namespace_key = random_lower(8)
@@ -216,12 +199,8 @@ def test_write_grant_access(client, create_user):
 @pytest.mark.sync
 def test_delete_grant_access(client, create_user):
     """DELETE grant access on an entry allows the entry to be deleted"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     namespace_key = random_lower(8)
@@ -253,12 +232,8 @@ def test_delete_grant_access(client, create_user):
 @pytest.mark.sync
 def test_union_grant_access(client, create_user):
     """A grant with multiple access types grant the union of each of their respective access"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     namespace_key = random_lower(8)
@@ -293,12 +268,8 @@ def test_union_grant_access(client, create_user):
 @pytest.mark.sync
 def test_grant_access_overwrite(client, create_user):
     """A grant can be overwritten to provide a different grant access without revoking it first"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     entry_key = random_lower(8)
@@ -321,14 +292,11 @@ def test_grant_access_overwrite(client, create_user):
 @pytest.mark.sync
 def test_grant_sharing(client, create_user):
     """A user can only grant a level of access that they already have"""
-    client.authenticate()
 
     # Create the test users
     test_user_a, test_user_b = random_lower(8), random_lower(8)
-    test_client_a = create_user(test_user_a, permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
-    test_client_b = create_user(test_user_b, permissions=[Permission.STORE_USE])
-    test_client_a.authenticate()
-    test_client_b.authenticate()
+    test_client_a = create_user(client, test_user_a, permissions=[Permission.STORE_USE, Permission.STORE_SHARE])
+    create_user(client, test_user_b, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     entry_key = random_lower(8)
@@ -358,12 +326,8 @@ def test_grant_sharing(client, create_user):
 @pytest.mark.sync
 def test_direct_access_does_not_impede_indirect_access(client, create_user):
     """A user's direct access will not override their indirect access to a resource"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define the randomized variables
     namespace_key = random_lower(8)
@@ -387,12 +351,8 @@ def test_direct_access_does_not_impede_indirect_access(client, create_user):
 @pytest.mark.sync
 def test_child_enumeration(client, create_user):
     """Enumerating child entries and namespaces works as expected"""
-    client.authenticate()
-
-    # Create the test user
     test_user = random_lower(8)
-    test_client = create_user(test_user, permissions=[Permission.STORE_USE])
-    test_client.authenticate()
+    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Define randomized variables
     parent_namespace_key = random_lower(8)

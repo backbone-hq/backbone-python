@@ -2,8 +2,7 @@ import pytest
 from httpx import HTTPError
 
 from backbone.models import Workspace
-
-from .conftest import WORKSPACE_DISPLAY_NAME, WORKSPACE_NAME
+from tests.sync.conftest import WORKSPACE_DISPLAY_NAME
 
 # Testing workspace creation/deletion is implicitly done by the client setup and teardown
 
@@ -15,8 +14,6 @@ def test_workspace_read(client):
 
     workspace: Workspace = client.workspace.get()
 
-    # Assert properties defined remain intact
-    assert workspace.name == WORKSPACE_NAME
     assert workspace.display_name == WORKSPACE_DISPLAY_NAME
 
 

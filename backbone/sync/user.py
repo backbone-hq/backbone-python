@@ -31,14 +31,12 @@ class UserClient:
         self,
         username: str,
         public_key: PublicKey,
-        email_address: Optional[str] = None,
         permissions: List[Permission] = (),
     ) -> User:
         response = self.backbone.session.post(
             self.endpoint,
             content=User(
                 name=username,
-                email_address=email_address,
                 public_key=public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode(),
                 permissions=permissions,
             ).json(),
@@ -47,22 +45,18 @@ class UserClient:
         response.raise_for_status()
         return User.parse_obj(response.json())
 
-    def create_self(self, email_address: Optional[str] = None, permissions: List[Permission] = ()) -> User:
+    def create_self(self, permissions: List[Permission] = ()) -> User:
         return self.create(
             username=self.backbone._username,
             public_key=self.backbone._public_key,
-            email_address=email_address,
             permissions=permissions,
         )
 
-    def create_from_credentials(
-        self, username: str, password: str, email_address: Optional[str] = None, permissions: List[Permission] = ()
-    ) -> User:
+    def create_from_credentials(self, username: str, password: str, permissions: List[Permission] = ()) -> User:
         derived_public_key = PrivateKey(derive_password_key(identity=username, password=password)).public_key
         return self.create(
             username=username,
             public_key=derived_public_key,
-            email_address=email_address,
             permissions=permissions,
         )
 
