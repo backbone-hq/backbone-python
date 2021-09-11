@@ -6,20 +6,20 @@ from pydantic import BaseModel, Field, conint, conlist, conset, constr
 
 # Primitive types
 safe_base64 = partial(constr, strip_whitespace=True, regex=r"[a-zA-Z0-9-_]+={0,3}")
-
-# Semantic types
 public_key = partial(safe_base64, min_length=44, max_length=44)
 
-# Store primitives
+# Backbone restrictions
+workspace_name = partial(constr, strip_whitespace=True, min_length=1, max_length=128, regex=r"[a-z-_]+")
+user_name = partial(constr, strip_whitespace=True, min_length=1, max_length=128, regex=r"[a-zA-Z0-9-_]+")
 store_key = partial(constr, strip_whitespace=True, max_length=256)
 
 # Token
-entry_duration = conint(gt=0)
-token_duration = conint(gt=0, le=30 * 86_400)
+entry_duration = partial(conint, gt=0)
+token_duration = partial(conint, gt=0, le=30 * 86_400)
 
 
 class Permission(Enum):
-    """Access control for API endpoints"""
+    """Access control for endpoints"""
 
     # Root permissions
     ROOT = "root"
@@ -47,18 +47,18 @@ class BackboneModel(BaseModel):
 
 
 class User(BackboneModel):
-    name: constr(min_length=1, max_length=128)
+    name: user_name()
     public_key: public_key()
     permissions: List[Permission]
 
 
 class UserPermissionModification(BackboneModel):
-    name: constr(min_length=1, max_length=128)
+    name: user_name()
     permissions: List[Permission]
 
 
 class Workspace(BackboneModel):
-    name: constr(min_length=1, max_length=128)
+    name: workspace_name()
     display_name: constr(min_length=1, max_length=128)
 
 
@@ -95,7 +95,7 @@ class Namespace(NamespaceDefinition, Chain):
 class EntryDefinition(BackboneModel):
     value: safe_base64(max_length=4096)
     grants: conlist(EntryGrant, min_items=1)
-    duration: Optional[entry_duration] = Field(default=None)
+    duration: Optional[entry_duration()] = Field(default=None)
 
 
 class Entry(EntryDefinition, Chain):
@@ -110,20 +110,20 @@ class WorkspaceCreation(BackboneModel):
 
 class Token(BackboneModel):
     hidden_token: safe_base64()
-    duration: token_duration
+    duration: token_duration()
     permissions: Optional[List[Permission]]
 
 
 class TokenDerivation(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
-    duration: token_duration = Field(default=86_400)
+    duration: token_duration() = Field(default=86_400)
 
 
 class TokenAuthentication(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
-    workspace: constr(min_length=1, max_length=128)
-    username: constr(min_length=1, max_length=128)
-    duration: token_duration = Field(default=86_400)
+    workspace: workspace_name()
+    username: user_name()
+    duration: token_duration() = Field(default=86_400)
 
 
 class Action(Enum):
