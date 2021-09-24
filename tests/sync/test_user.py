@@ -63,6 +63,13 @@ def test_user_permission_modification(client, create_user):
 
 
 @pytest.mark.sync
+def test_duplicate_user_creation(client, create_user):
+    with pytest.raises(HTTPError):
+        create_user(client, ADMIN_USERNAME, permissions=[Permission.STORE_USE])
+
+
+
+@pytest.mark.sync
 def test_user_get(client, create_user):
     test_user = random_lower(8)
     test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
