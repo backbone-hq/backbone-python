@@ -1,10 +1,10 @@
 import pytest
-from httpx import HTTPError
 
+from backbone.exceptions import UnauthorizedTokenException
 from backbone.models import Workspace
 from tests.core.conftest import WORKSPACE_DISPLAY_NAME
 
-# Testing workspace creation/deletion is implicitly done by the client setup and teardown
+# Note: Testing workspace creation/deletion is implicitly done by the client setup and teardown
 
 
 @pytest.mark.asyncio
@@ -21,5 +21,5 @@ async def test_workspace_read(client):
 async def test_workspace_delete_fails_without_root(client):
     await client.authenticate(permissions=[])
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(UnauthorizedTokenException):
         await client.workspace.delete(safety_check=False)

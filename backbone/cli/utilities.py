@@ -1,5 +1,4 @@
 import functools
-import json
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional
@@ -13,7 +12,7 @@ from nacl.hash import blake2b
 from nacl.public import PrivateKey
 from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
-from nacl.utils import encoding, random
+from nacl.utils import encoding
 
 from backbone import crypto
 from backbone.sync import BackboneClient

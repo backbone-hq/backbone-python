@@ -1,9 +1,9 @@
 import pytest
-from httpx import HTTPError
 from nacl import encoding
 from nacl.exceptions import CryptoError
 
 from backbone.sync import Permission
+from backbone.exceptions import ConflictingUserException, UnauthorizedTokenException
 from backbone.models import User
 from tests.sync.conftest import ADMIN_SK, ADMIN_USERNAME
 from tests.sync.utilities import random_lower
@@ -31,7 +31,7 @@ def test_user_creation_and_deletion(client, create_user):
     test_client = create_user(client, test_user, permissions=[])
 
     # Test user cannot delete themselves
-    with pytest.raises(HTTPError):
+    with pytest.raises(UnauthorizedTokenException):
         test_client.user.delete(username=test_user, force=True)
 
     # User with USER_MANAGE can delete the user
@@ -64,15 +64,14 @@ def test_user_permission_modification(client, create_user):
 
 @pytest.mark.sync
 def test_duplicate_user_creation(client, create_user):
-    with pytest.raises(HTTPError):
+    with pytest.raises(ConflictingUserException):
         create_user(client, ADMIN_USERNAME, permissions=[Permission.STORE_USE])
-
 
 
 @pytest.mark.sync
 def test_user_get(client, create_user):
     test_user = random_lower(8)
-    test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
+    create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     result = client.user.get(test_user)
     assert len(result) == 1
@@ -96,5 +95,5 @@ def test_user_creation_fails_without_user_manage_permission(client, create_user)
     # Authenticate the client
     client.authenticate(permissions=[])
 
-    with pytest.raises(HTTPError):
+    with pytest.raises(UnauthorizedTokenException):
         create_user(client, "test", permissions=[])

@@ -1,13 +1,29 @@
-from dataclasses import dataclass, field
+from abc import abstractmethod
+from dataclasses import dataclass
 from typing import List, Optional
 
 from .models import Permission
 
 
+@dataclass
 class BackboneException(Exception):
     message: str
-    __status_code__: int
-    type: str
+
+    @property
+    @abstractmethod
+    def __status_code__(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
+    def type(self) -> str:
+        pass
+
+
+@dataclass
+class InternalServerError(BackboneException):
+    __status_code__: int = 500
+    type: str = "internal_server_error"
 
 
 @dataclass
@@ -111,13 +127,13 @@ class ConflictingGrantException(BackboneException):
 _ERR_MAP = {cls.type: cls for cls in BackboneException.__subclasses__()}
 
 
-def deserialize_exception(error: dict):
-    error_type = error.get("type")
+def deserialize_exception(exception: dict):
+    error_type = exception.get("type")
     if not error_type:
-        raise (f"Unknown error: {error}")
+        raise (f"Unknown error: {exception}")
 
-    exception = _ERR_MAP.get(error_type)
+    exception_class = _ERR_MAP.get(error_type)
     if not exception:
-        raise NotImplementedError(f"Received unknown error type: {error}")
+        raise NotImplementedError(f"Received unknown error type: {exception}")
 
-    raise exception
+    raise exception_class(**exception)

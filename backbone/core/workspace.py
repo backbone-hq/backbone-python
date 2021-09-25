@@ -10,7 +10,7 @@ class WorkspaceClient:
 
     async def get(self) -> Workspace:
         response = await self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return Workspace.parse_obj(response.json())
 
     async def create(self, display_name: str) -> Workspace:
@@ -45,7 +45,7 @@ class WorkspaceClient:
             auth=self.backbone.authenticator,
         )
 
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return Workspace.parse_obj(response.json())
 
     async def delete(self, safety_check=True) -> None:
@@ -54,4 +54,4 @@ class WorkspaceClient:
             assert input("Please confirm by typing your workspace's name: ") == self.backbone._workspace_name
 
         response = await self.backbone.session.delete(self.endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
