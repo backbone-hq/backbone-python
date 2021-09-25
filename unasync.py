@@ -27,6 +27,8 @@ _ASYNC_TO_SYNC = compile_substitutions(
         "async with": "with",
         "async for": "for",
         "await ": "",
+        # Asyncio
+        "asyncio.sleep": "__import__('time').sleep",
         # Pytest
         "@pytest.mark.asyncio": "@pytest.mark.sync",
         # Backbone
@@ -35,7 +37,7 @@ _ASYNC_TO_SYNC = compile_substitutions(
         # HTTPx
         "async_auth_flow": "auth_flow",
         "httpx.AsyncClient": "httpx.Client",
-        "aclose": "close",
+        ".aclose": ".close",
     }
 )
 
