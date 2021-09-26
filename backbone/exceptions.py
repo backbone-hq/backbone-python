@@ -9,6 +9,9 @@ from .models import Permission
 class BackboneException(Exception):
     message: str
 
+    def __str__(self) -> str:
+        return self.message
+
     @property
     @abstractmethod
     def __status_code__(self) -> int:

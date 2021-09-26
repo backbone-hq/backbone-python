@@ -1,3 +1,4 @@
+import binascii
 import functools
 from enum import Enum
 from pathlib import Path
@@ -7,12 +8,12 @@ import cbor2
 import getmac
 import nacl.exceptions
 import typer
+from halo import Halo
 from nacl import encoding
 from nacl.hash import blake2b
 from nacl.public import PrivateKey
 from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
-from nacl.utils import encoding
 
 from backbone import crypto
 from backbone.sync import BackboneClient
@@ -80,13 +81,16 @@ def client_from_config(configuration: Dict[Configuration, str]):
 
 
 def get_secret(username: str, password: bool) -> PrivateKey:
-    secret = typer.prompt(f"Please enter a {'password' if password else 'key'}", hide_input=True)
+    secret = typer.prompt(f"Enter your {'password' if password else 'private key'}", hide_input=True)
 
-    return (
-        PrivateKey(crypto.derive_password_key(identity=username, password=secret))
-        if password
-        else PrivateKey(secret, encoder=encoding.URLSafeBase64Encoder)
-    )
+    if password:
+        with Halo("Deriving key"):
+            return PrivateKey(crypto.derive_password_key(identity=username, password=secret))
+
+    try:
+        return PrivateKey(secret, encoder=encoding.URLSafeBase64Encoder)
+    except binascii.Error:
+        typer.echo(f"Invalid key")
 
 
 def get_mac_address():
