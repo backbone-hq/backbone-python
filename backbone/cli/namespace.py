@@ -14,24 +14,38 @@ namespace_cli = typer.Typer()
 def namespace_tree(key: str = typer.Argument(""), depth: int = 3):
     """Visually display the store starting from a particular prefix"""
     configuration = read_configuration()
+    _whitespace = "   "
 
-    def print_layer(client, namespace: str, level: int = 0, indentation: str = ""):
+    def print_layer(client, namespace: str, level: int = 0, indent: str = ""):
         if level > depth:
             return
 
-        resources = [(False, entry) for entry in client.namespace.get_child_entries(namespace)] + [
-            (True, namespace) for namespace in client.namespace.get_child_namespaces(namespace)
+        # Identify all children and namespaces of a parent namespace
+        resources = [
+            (False, e) for e in client.namespace.get_child_entries(namespace)
+        ] + [
+            (True, n) for n in client.namespace.get_child_namespaces(namespace)
         ]
 
         for index, (is_namespace, resource) in enumerate(resources):
             key: str = resource["key"]
-            next_final: bool = index == len(resources) - 1
-            prefix: str = "└──" if next_final else "├──"
+            # Decide whether to use a corner or continuation character
+            is_last: bool = index == len(resources) - 1
+            wire: str = "└──" if is_last else "├──"
+            bulb: str = "●" if is_namespace else "○"
 
-            typer.echo(f"{indentation}{prefix} {key}")
+            # Display resource
+            typer.echo(f"{indent}{wire}{bulb} {key}")
+
+            # Continue searching for resources in namespaces depth-first
             if is_namespace:
-                next_indentation = indentation + ("\t" if next_final else "│\t")
-                print_layer(client, key, level=level + 1, indentation=next_indentation)
+                next_indent = indent + (_whitespace if is_last else f"│{_whitespace[:-1]}")
+
+                # If this is the last level, denote unexplored namespaces
+                if level == depth:
+                    typer.echo(f"{next_indent}└── ...")
+
+                print_layer(client, key, level=level + 1, indent=next_indent)
 
     try:
         with client_from_config(configuration) as client:
