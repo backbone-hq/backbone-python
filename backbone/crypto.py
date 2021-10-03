@@ -7,6 +7,9 @@ from nacl.secret import SecretBox
 from nacl.utils import encoding, random
 
 
+BACKBONE_PK = PublicKey(b"etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4=", encoder=encoding.URLSafeBase64Encoder)
+
+
 def digest_bytes(obj):
     return blake2b(obj, digest_size=32, encoder=encoding.RawEncoder)
 
@@ -26,8 +29,7 @@ def decrypt_grant(public_key: PublicKey, secret_key: PrivateKey, ciphertext: byt
 
 
 def decrypt_hidden_token(secret_key: PrivateKey, ciphertext: bytes) -> bytes:
-    auth_box_pk = PublicKey(b"etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4=", encoder=encoding.URLSafeBase64Encoder)
-    return Box(secret_key, auth_box_pk).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
+    return Box(secret_key, BACKBONE_PK).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
 
 
 def encrypt_entry(plaintext: str, *public_keys: PublicKey) -> (bytes, List[Tuple[bytes, bytes]]):
