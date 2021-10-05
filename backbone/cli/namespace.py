@@ -16,7 +16,7 @@ def namespace_tree(key: str = typer.Argument(""), depth: int = 3):
     configuration = read_configuration()
     _whitespace = "   "
 
-    def print_layer(client, namespace: str, level: int = 0, indent: str = ""):
+    def print_layer(client, namespace: str, level: int = 1, indent: str = ""):
         if level > depth:
             return
 
