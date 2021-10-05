@@ -13,6 +13,11 @@ class TokenClient:
     def __init__(self, client):
         self.backbone = client
 
+    def _decrypt_token_response(self, response: Response) -> str:
+        token: Token = Token.parse_obj(response.json())
+        hidden_token = token.hidden_token
+        return decrypt_hidden_token(self.backbone._secret_key, hidden_token.encode()).decode()
+
     async def get_all(self):
         async for item in self.backbone.paginate(self.bulk_endpoint):
             yield Token.parse_obj(item)
@@ -32,8 +37,9 @@ class TokenClient:
                 duration=duration,
             ).json(),
         )
+
         self.backbone.handle_exception(response)
-        return self.__decrypt_token_response(response)
+        return self._decrypt_token_response(response)
 
     async def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
         response = await self.backbone.session.patch(
@@ -42,13 +48,8 @@ class TokenClient:
             auth=self.backbone.authenticator,
         )
         self.backbone.handle_exception(response)
-        return self.__decrypt_token_response(response)
+        return self._decrypt_token_response(response)
 
     async def revoke(self) -> None:
         response = await self.backbone.session.delete(self.endpoint, auth=self.backbone.authenticator)
         self.backbone.handle_exception(response)
-
-    def __decrypt_token_response(self, response: Response) -> str:
-        token: Token = Token.parse_obj(response.json())
-        hidden_token = token.hidden_token
-        return decrypt_hidden_token(self.backbone._secret_key, hidden_token.encode()).decode()

@@ -15,7 +15,7 @@ class NamespaceClient:
     def __init__(self, client):
         self.backbone = client
 
-    def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
+    def _unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
         response = self.backbone.session.get(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         self.backbone.handle_exception(response)
         result = response.json()
@@ -36,7 +36,7 @@ class NamespaceClient:
         return namespace_private_key, user_grant
 
     def get(self, key: str) -> PrivateKey:
-        return (self.__unroll_chain(key))[0]
+        return (self._unroll_chain(key))[0]
 
     def get_chain(self, key: str) -> List[dict]:
         response = self.backbone.session.get(f"{self.chain_endpoint}/{key}", auth=self.backbone.authenticator)
@@ -237,7 +237,7 @@ class NamespaceClient:
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
-        namespace_secret_key, namespace_grant = self.__unroll_chain(key)
+        namespace_secret_key, namespace_grant = self._unroll_chain(key)
         access = [item.value for item in access] if access else namespace_grant["access"]
 
         grants = [

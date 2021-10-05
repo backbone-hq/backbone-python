@@ -12,7 +12,7 @@ class EntryClient:
     def __init__(self, client):
         self.backbone = client
 
-    async def __unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
+    async def _unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
         response = await self.backbone.session.get(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
         self.backbone.handle_exception(response)
         result = response.json()
@@ -37,7 +37,7 @@ class EntryClient:
         :param key: the key to obtain
         :return: the value if the user has sufficient access
         """
-        ciphertext, grant, grant_sk = await self.__unroll_chain(key)
+        ciphertext, grant, grant_sk = await self._unroll_chain(key)
         return crypto.decrypt_entry(ciphertext, grant["value"].encode(), grant_sk).decode()
 
     async def set(self, key: str, value: str, access: List[GrantAccess] = (), duration: Optional[int] = None) -> dict:
@@ -91,7 +91,7 @@ class EntryClient:
         if strict and len(resolved_users) != len(users):
             raise ValueError
 
-        _, grant, grant_sk = await self.__unroll_chain(key)
+        _, grant, grant_sk = await self._unroll_chain(key)
         entry_key = crypto.decrypt_entry_encryption_key(grant["value"].encode(), grant_sk)
         access = [item.value for item in access] if access else grant["access"]
 

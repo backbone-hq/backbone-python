@@ -54,17 +54,17 @@ class BackboneClient:
         self.__session: Optional[httpx.AsyncClient] = None
         self.authenticator: Optional[BackboneAuth] = None
 
-    def __init_session(self):
+    def _init_session(self):
         if not self.__session:
             self.__session = httpx.AsyncClient(base_url=self._base_url)
 
     @property
     def session(self) -> httpx.AsyncClient:
-        self.__init_session()
+        self._init_session()
         return self.__session
 
     async def __aenter__(self):
-        self.__init_session()
+        self._init_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
