@@ -133,10 +133,10 @@ _ERR_MAP = {cls.type: cls for cls in BackboneException.__subclasses__()}
 def deserialize_exception(exception: dict):
     error_type = exception.get("type")
     if not error_type:
-        raise (f"Unknown error: {exception}")
+        raise NotImplementedError(f"Unknown error: {exception}")
 
     exception_class = _ERR_MAP.get(error_type)
     if not exception:
-        raise NotImplementedError(f"Received unknown error type: {exception}")
+        raise NotImplementedError(f"Unknown error: {exception}")
 
     raise exception_class(**exception)
