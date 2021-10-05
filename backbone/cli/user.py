@@ -1,12 +1,14 @@
 import secrets
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import cbor2
 import typer
+from halo import Halo
 
 from backbone import crypto
 from backbone.cli.utilities import client_from_config, get_secret, read_configuration
 from backbone.crypto import encoding
+from backbone.exceptions import BackboneException
 from backbone.models import User
 from backbone.sync import Permission, PrivateKey, PublicKey
 
@@ -40,9 +42,16 @@ def user_list():
     """Lists all users in the current workspace"""
     configuration = read_configuration()
 
-    with client_from_config(configuration) as client:
-        for user in client.user.list():
+    try:
+        with Halo("Listing users"), client_from_config(configuration) as client:
+            users = client.user.list()
+
+        typer.echo("Users:", color=typer.colors.GREEN)
+        for user in users:
             serialize(user)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
 
 @user_cli.command("get")
@@ -50,9 +59,14 @@ def user_get(username: str):
     """View a particular user's details"""
     configuration = read_configuration()
 
-    with client_from_config(configuration) as client:
-        for user in client.user.get(username):
-            serialize(user)
+    try:
+        with Halo(f"Finding {username}"), client_from_config(configuration) as client:
+            user, *_ = list(client.user.get(username))
+
+        serialize(user)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
 
 @user_cli.command("self")
@@ -60,9 +74,14 @@ def user_get_self():
     """View the current user's details"""
     configuration = read_configuration()
 
-    with client_from_config(configuration) as client:
-        user = client.user.self()
+    try:
+        with Halo("Retrieving information"), client_from_config(configuration) as client:
+            user = client.user.self()
+
         serialize(user)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
 
 @user_cli.command("create")
@@ -76,10 +95,15 @@ def user_create(
     secret_key: PrivateKey = get_secret(username=username, password=password)
     public_key = secret_key.public_key
 
-    with client_from_config(configuration) as client:
-        user = client.user.create(username, public_key, permissions)
+    try:
+        with Halo(f"Creating user {username}"), client_from_config(configuration) as client:
+            user = client.user.create(username, public_key, permissions)
+
         serialize(user)
         typer.echo(f"Private Key: {secret_key.encode(encoding.URLSafeBase64Encoder).decode()}", color=typer.colors.RED)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
 
 @user_cli.command("import")
@@ -90,26 +114,26 @@ def user_import(payload: str, permissions: List[Permission] = ()):
     try:
         username, public_key = _decode_user_spec(payload)
     except ValueError:
-        typer.echo(f"Invalid payload: {payload}")
+        typer.echo("Invalid payload")
         raise typer.Abort()
 
     typer.confirm(f"Import the user `{username}`?", abort=True)
 
-    with client_from_config(configuration) as client:
-        user = client.user.create(username=username, public_key=public_key, permissions=permissions)
+    try:
+        with Halo(f"Import user {username}"), client_from_config(configuration) as client:
+            user = client.user.create(username=username, public_key=public_key, permissions=permissions)
+
         serialize(user)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
 
 @user_cli.command("generate")
 def user_generate(username: str, password: bool = typer.Option(False, "--password")):
     """Generate a user payload to import"""
 
-    if password:
-        password = typer.prompt("Please enter your password", hide_input=True)
-        secret_key: PrivateKey = PrivateKey(crypto.derive_password_key(identity=username, password=password))
-    else:
-        secret_key: PrivateKey = PrivateKey.generate()
-
+    secret_key: PrivateKey = get_secret(username=username, password=password)
     payload = _encode_user_spec(username, secret_key.public_key)
     typer.echo(f"Preparing to create the user {username}")
     typer.echo(f"Payload: {payload}", color=typer.colors.GREEN)
@@ -121,17 +145,25 @@ def user_generate(username: str, password: bool = typer.Option(False, "--passwor
 
 @user_cli.command("modify")
 def user_modify(username: str, permissions: List[Permission] = ()):
-    """Modify an account's permissions"""
+    """Modify a user's permissions"""
     configuration = read_configuration()
 
-    with client_from_config(configuration) as client:
-        client.user.modify(username=username, permissions=permissions)
+    try:
+        with Halo(f"Modifying user {username}"), client_from_config(configuration) as client:
+            client.user.modify(username=username, permissions=permissions)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
 
 @user_cli.command("delete")
 def user_delete(username: str, force: bool = False):
-    """Delete the current user account"""
+    """Delete a user from the workspace"""
     configuration = read_configuration()
 
-    with client_from_config(configuration) as client:
-        client.user.delete(username=username, force=force)
+    try:
+        with Halo(f"Deleting user {username}"), client_from_config(configuration) as client:
+            client.user.delete(username=username, force=force)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()

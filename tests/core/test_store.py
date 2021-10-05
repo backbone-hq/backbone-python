@@ -1,9 +1,9 @@
 import asyncio
 
 import pytest
-from httpx import HTTPError
 from nacl import encoding
 
+from backbone.exceptions import NonexistentStoreKeyException, UnauthorizedGrantException
 from backbone.models import GrantAccess, Permission
 from tests.core.utilities import random_lower
 
@@ -31,7 +31,7 @@ async def test_entry_creation_read_deletion(client):
     assert result is None
 
     # Fail to obtain the deleted entry
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await client.entry.get(key)
 
 
@@ -49,7 +49,7 @@ async def test_entry_expiration(client):
 
     # Delayed call fails
     await asyncio.sleep(1)
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await client.entry.get(key)
 
 
@@ -76,7 +76,7 @@ async def test_namespace_creation_read_deletion(client):
     assert result is None
 
     # Fail to obtain the deleted namespace
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await client.namespace.get(key)
 
 
@@ -150,10 +150,10 @@ async def test_read_grant_access(client, create_user):
     await client.entry.set(indirect_entry_key, value, access=[GrantAccess.READ])
 
     # Test account fails to find the namespace & entry
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await test_client.namespace.get(namespace_key)
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await test_client.entry.get(direct_entry_key)
 
     # Granting the test account read access and reading works as expected
@@ -184,7 +184,7 @@ async def test_write_grant_access(client, create_user):
     await client.entry.set(indirect_entry_key, value, access=[GrantAccess.WRITE])
 
     # Test account fails to overwrite the entry
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await test_client.entry.set(direct_entry_key, new_value)
 
     # Test account can overwrite the entry when granted write access
@@ -218,10 +218,10 @@ async def test_delete_grant_access(client, create_user):
     await client.entry.set(indirect_entry_key, value, access=[GrantAccess.DELETE])
 
     # Test account fails to delete the namespace & entry
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await test_client.namespace.delete(namespace_key)
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         await test_client.entry.delete(direct_entry_key)
 
     # Test account can delete the namespace & entry when granted delete access
@@ -255,10 +255,11 @@ async def test_union_grant_access(client, create_user):
     await client.entry.grant(direct_entry_key, test_user, access=[GrantAccess.READ, GrantAccess.DELETE])
 
     # User should not have WRITE access to either entry
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
+        # Returns a NonexistentStoreKeyException because of a lack of READ access to the parent namespace
         await test_client.entry.set(direct_entry_key, random_lower(8))
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(UnauthorizedGrantException):
         await test_client.entry.set(indirect_entry_key, random_lower(8))
 
     # User should have READ and DELETE access
@@ -320,10 +321,10 @@ async def test_grant_sharing(client, create_user):
     await test_client_a.entry.grant(entry_key, test_user_b, access=[GrantAccess.READ])
 
     # User A can NOT grant WRITE access to user B
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(UnauthorizedGrantException):
         await test_client_a.namespace.grant(namespace_key, test_user_b, access=[GrantAccess.WRITE])
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(UnauthorizedGrantException):
         await test_client_a.entry.grant(entry_key, test_user_b, access=[GrantAccess.WRITE])
 
 
@@ -379,10 +380,10 @@ async def test_child_enumeration(client, create_user):
     assert [entry["key"] async for entry in client.namespace.get_child_entries(parent_namespace_key)] == entry_keys
 
     # An unprivileged user querying throws a 404
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         async for _ in test_client.namespace.get_child_namespaces(parent_namespace_key):
             pass
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(NonexistentStoreKeyException):
         async for _ in test_client.namespace.get_child_entries(parent_namespace_key):
             pass

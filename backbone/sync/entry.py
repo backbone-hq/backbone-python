@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from backbone import crypto
 from backbone.crypto import PrivateKey, PublicKey, encoding
@@ -14,7 +14,7 @@ class EntryClient:
 
     def __unroll_chain(self, key: str) -> Tuple[str, dict, PrivateKey]:
         response = self.backbone.session.get(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         result = response.json()
 
         # Decrypt the grant chain; obtain the nearest namespace's private key
@@ -64,18 +64,18 @@ class EntryClient:
             timeout=None,
         )
 
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return response.json()
 
     def delete(self, key: str) -> None:
         response = self.backbone.session.delete(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
 
     def grant_raw(self, key: str, *grants):
         response = self.backbone.session.post(
             f"{self.grant_endpoint}/{key}", json=grants, auth=self.backbone.authenticator
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return response.json()
 
     def grant(self, key: str, *users: str, access: Set[GrantAccess] = None, strict: bool = True) -> dict:
@@ -126,4 +126,4 @@ class EntryClient:
             json=[user["public_key"] for user in resolved_users],
             auth=self.backbone.authenticator,
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)

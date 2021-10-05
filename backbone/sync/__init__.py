@@ -9,6 +9,7 @@ from backbone.sync.namespace import NamespaceClient
 from backbone.sync.token import TokenClient
 from backbone.sync.user import UserClient
 from backbone.sync.workspace import WorkspaceClient
+from backbone.exceptions import deserialize_exception
 from backbone.models import Permission
 
 __version__ = 0
@@ -105,7 +106,7 @@ class BackboneClient:
 
     def paginate(self, endpoint):
         response = self.session.get(endpoint, auth=self.authenticator)
-        response.raise_for_status()
+        self.handle_exception(response)
         result = response.json()
 
         for item in result["results"]:
@@ -118,3 +119,7 @@ class BackboneClient:
 
             for item in result["results"]:
                 yield item
+
+    def handle_exception(self, response: httpx.Response):
+        if httpx._status_codes.codes.is_error(response.status_code):
+            deserialize_exception(response.json())

@@ -1,4 +1,6 @@
 import typer
+from halo import Halo
+from nacl.exceptions import CryptoError
 from nacl.utils import encoding
 
 from backbone.cli.config import config_cli
@@ -14,6 +16,7 @@ from backbone.cli.utilities import (
     write_configuration,
 )
 from backbone.cli.workspace import workspace_cli
+from backbone.exceptions import BackboneException
 
 # Specify CLI structure
 backbone_cli = typer.Typer()
@@ -36,9 +39,16 @@ def authenticate(
     secret_key = get_secret(username=username, password=password)
     configuration[Configuration.KEY] = secret_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
 
-    with client_from_config(configuration) as client:
-        # Always request maximum permissions in the CLI
-        token = client.token.authenticate(permissions=None, duration=duration)
+    try:
+        with Halo(f"Authenticating {username}"), client_from_config(configuration) as client:
+            # Always request maximum permissions in the CLI
+            token = client.token.authenticate(permissions=None, duration=duration)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
+    except CryptoError:
+        typer.echo("Invalid credentials")
+        raise typer.Abort()
 
     configuration[Configuration.TOKEN] = token
     write_configuration(configuration)
@@ -48,7 +58,11 @@ def authenticate(
 def deauthenticate():
     configuration = read_configuration()
 
-    with client_from_config(configuration) as client:
-        client.deauthenticate()
+    try:
+        with client_from_config(configuration) as client:
+            client.deauthenticate()
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()
 
     write_configuration({})

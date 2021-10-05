@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, Tuple
 
 from backbone.crypto import PrivateKey, PublicKey, derive_password_key, encoding
 from backbone.models import Permission, User, UserPermissionModification
@@ -19,12 +19,12 @@ class UserClient:
         response = self.backbone.session.post(
             self.bulk_endpoint, auth=self.backbone.authenticator, json=usernames
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return tuple(map(User.parse_obj, response.json()))
 
     def self(self) -> User:
         response = self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return User.parse_obj(response.json())
 
     def create(
@@ -42,7 +42,7 @@ class UserClient:
             ).json(),
             auth=self.backbone.authenticator,
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return User.parse_obj(response.json())
 
     def create_from_credentials(self, username: str, password: str, permissions: List[Permission] = ()) -> User:
@@ -59,11 +59,11 @@ class UserClient:
             content=UserPermissionModification(name=username, permissions=permissions).json(),
             auth=self.backbone.authenticator,
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return User.parse_obj(response.json())
 
     def delete(self, username: str, force: bool = False) -> None:
         response = self.backbone.session.delete(
             self.endpoint, params={"username": username, "force": force}, auth=self.backbone.authenticator
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)

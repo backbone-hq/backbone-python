@@ -19,7 +19,7 @@ class TokenClient:
 
     async def get(self) -> Token:
         response = await self.backbone.session.get(self.endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return Token.parse_obj(response.json())
 
     async def authenticate(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
@@ -32,7 +32,7 @@ class TokenClient:
                 duration=duration,
             ).json(),
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return self.__decrypt_token_response(response)
 
     async def derive(self, permissions: Optional[List[Permission]] = None, duration: int = 86_400) -> str:
@@ -41,12 +41,12 @@ class TokenClient:
             content=TokenDerivation(permissions=permissions, duration=duration).json(),
             auth=self.backbone.authenticator,
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return self.__decrypt_token_response(response)
 
     async def revoke(self) -> None:
         response = await self.backbone.session.delete(self.endpoint, auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
 
     def __decrypt_token_response(self, response: Response) -> str:
         token: Token = Token.parse_obj(response.json())

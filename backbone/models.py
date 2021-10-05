@@ -18,7 +18,7 @@ entry_duration = partial(conint, gt=0)
 token_duration = partial(conint, gt=0, le=30 * 86_400)
 
 
-class Permission(Enum):
+class Permission(str, Enum):
     """Access control for endpoints"""
 
     # Root permissions
@@ -32,7 +32,7 @@ class Permission(Enum):
     STORE_SHARE = "store:share"
 
 
-class GrantAccess(Enum):
+class GrantAccess(str, Enum):
     """Access control within the store"""
 
     READ = "read"
@@ -126,7 +126,7 @@ class TokenAuthentication(BackboneModel):
     duration: token_duration() = Field(default=86_400)
 
 
-class Action(Enum):
+class Action(str, Enum):
     # Audit Log
     AUDIT_ALL = "audit_all"
     AUDIT_SELF = "audit_self"

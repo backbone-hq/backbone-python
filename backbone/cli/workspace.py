@@ -1,4 +1,5 @@
 import typer
+from halo import Halo
 
 from backbone.cli.utilities import (
     Configuration,
@@ -8,6 +9,7 @@ from backbone.cli.utilities import (
     write_configuration,
 )
 from backbone.crypto import encoding
+from backbone.exceptions import BackboneException
 
 workspace_cli = typer.Typer()
 
@@ -27,10 +29,13 @@ def workspace_create(
     configuration[Configuration.WORKSPACE] = workspace_name
     configuration[Configuration.USERNAME] = username
 
-    with client_from_config(configuration) as client:
-        workspace = client.workspace.create(display_name)
-        typer.echo(f"{workspace.name}: {workspace.display_name}")
-        token = client.token.authenticate(permissions=None)
+    try:
+        with Halo(f"Creating workspace {workspace_name}"), client_from_config(configuration) as client:
+            client.workspace.create(display_name)
+            token = client.token.authenticate(permissions=None)
 
-    configuration[Configuration.TOKEN] = token
-    write_configuration(configuration)
+            configuration[Configuration.TOKEN] = token
+            write_configuration(configuration)
+    except BackboneException as exc:
+        typer.echo(exc)
+        raise typer.Abort()

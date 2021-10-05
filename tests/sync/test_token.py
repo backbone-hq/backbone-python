@@ -1,10 +1,10 @@
 import pydantic
 import pytest
-from httpx import HTTPError
 from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 
 from backbone.sync import BackboneClient, Permission
+from backbone.exceptions import ExpiringTokenException, InvalidTokenException, UnauthorizedTokenException
 from backbone.models import Token, User
 
 
@@ -14,7 +14,7 @@ def test_fake_token(client):
     fake_client = BackboneClient(workspace=client._workspace_name, username="fake", secret_key=PrivateKey.generate())
 
     # Token decryption fails
-    with pytest.raises(CryptoError) as _exception:
+    with pytest.raises(CryptoError):
         fake_client.token.authenticate()
 
 
@@ -48,10 +48,10 @@ def test_client_authentication_implicit_max_permissions(client):
 
 @pytest.mark.sync
 def test_client_authentication_zero_or_negative_token_duration_fails(client):
-    with pytest.raises(pydantic.ValidationError) as _exception:
+    with pytest.raises(pydantic.ValidationError):
         client.authenticate(duration=-1)
 
-    with pytest.raises(pydantic.ValidationError) as _exception:
+    with pytest.raises(pydantic.ValidationError):
         client.authenticate(duration=0)
 
 
@@ -59,7 +59,7 @@ def test_client_authentication_zero_or_negative_token_duration_fails(client):
 def test_token_deauthentication(client):
     client.deauthenticate()
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(InvalidTokenException):
         client.token.get()
 
 
@@ -77,7 +77,7 @@ def test_token_derivation_scope_reduction(client):
 def test_token_derivation_privilege_escalation_fails(client):
     client.authenticate(permissions=[Permission.STORE_USE], duration=86_400)
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(UnauthorizedTokenException):
         client.token.derive(permissions=[Permission.STORE_USE, Permission.STORE_SHARE], duration=86_300)
 
 
@@ -85,5 +85,5 @@ def test_token_derivation_privilege_escalation_fails(client):
 def test_token_derivation_length_extension_fails(client):
     client.authenticate(permissions=[Permission.ROOT], duration=86_400)
 
-    with pytest.raises(HTTPError) as _exception:
+    with pytest.raises(ExpiringTokenException):
         client.token.derive(permissions=[Permission.ROOT], duration=86_500)

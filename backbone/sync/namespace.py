@@ -17,7 +17,7 @@ class NamespaceClient:
 
     def __unroll_chain(self, key: str) -> Tuple[PrivateKey, dict]:
         response = self.backbone.session.get(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         result = response.json()
 
         # Decrypt the grant chain; obtain the nearest namespace's private key
@@ -40,7 +40,7 @@ class NamespaceClient:
 
     def get_chain(self, key: str) -> List[dict]:
         response = self.backbone.session.get(f"{self.chain_endpoint}/{key}", auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return response.json().get("chain")
 
     def get_child_namespaces(self, prefix: str) -> Iterable[dict]:
@@ -131,7 +131,7 @@ class NamespaceClient:
             },
             auth=self.backbone.authenticator,
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return response.json()
 
     def delete(self, key: str) -> None:
@@ -215,13 +215,13 @@ class NamespaceClient:
                     self.backbone.entry.grant_raw(child_entry["key"], prospective_grant)
 
         response = self.backbone.session.delete(f"{self.endpoint}/{key}", auth=self.backbone.authenticator)
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
 
     def grant_raw(self, key: str, *grants):
         response = self.backbone.session.post(
             f"{self.grant_endpoint}/{key}", json=list(grants), auth=self.backbone.authenticator
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)
         return response.json()
 
     def grant(self, key: str, *users: str, access: Set[GrantAccess] = None, strict: bool = True) -> None:
@@ -271,4 +271,4 @@ class NamespaceClient:
             json=[user["public_key"] for user in resolved_users],
             auth=self.backbone.authenticator,
         )
-        response.raise_for_status()
+        self.backbone.handle_exception(response)

@@ -1,6 +1,7 @@
 from typing import Dict
 
 import typer
+from halo import Halo
 
 from backbone.cli.utilities import Configuration, read_configuration, write_configuration
 
