@@ -127,6 +127,12 @@ class ConflictingGrantException(BackboneException):
     type: str = "conflicting_grant"
 
 
+@dataclass
+class RateLimitException(BackboneException):
+    __status_code__: int = 429
+    type: str = "rate_limit"
+
+
 _ERR_MAP = {cls.type: cls for cls in BackboneException.__subclasses__()}
 
 
