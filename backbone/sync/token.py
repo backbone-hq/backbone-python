@@ -66,6 +66,7 @@ class TokenClient:
             content=models.TokenDerivation(permissions=permissions, duration=duration).json(),
             auth=self.backbone.authenticator,
         )
+
         self.backbone.handle_exception(response)
         return self._decrypt_token(response)
 
