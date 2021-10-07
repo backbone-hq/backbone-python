@@ -139,13 +139,19 @@ class ConflictingGrantException(BackboneException):
     type: str = "conflicting_grant"
 
 
+@dataclass
+class RateLimitException(BackboneException):
+    __status_code__: int = 429
+    type: str = "rate_limit"
+
+
 _ERR_MAP = {cls.type: cls for cls in BackboneException.__subclasses__()}
 
 
 def deserialize_exception(exception: dict):
     error_type = exception.get("type")
     if not error_type:
-        raise NotImplementedError(f"Unknown error: {exception}")
+        raise BackboneException(message=exception.get("message"))
 
     exception_class = _ERR_MAP.get(error_type)
     if not exception:

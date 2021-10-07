@@ -93,6 +93,10 @@ def test_intermediate_namespace_creation(client):
     # Create the intermediate namespace
     client.namespace.create(namespace_key)
 
+    # Ensure the entry becomes a child of the intermediate namespace
+    children = [entry for entry in client.namespace.get_child_entries(namespace_key)]
+    assert children[0]["key"] == entry_key
+
 
 @pytest.mark.sync
 def test_intermediate_namespace_deletion(client):

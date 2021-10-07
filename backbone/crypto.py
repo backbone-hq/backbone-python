@@ -8,6 +8,9 @@ from nacl.utils import encoding, random
 from backbone.constants import SERVICE_ROOT_PK
 
 
+BACKBONE_PK = PublicKey(b"etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4=", encoder=encoding.URLSafeBase64Encoder)
+
+
 def digest_bytes(obj):
     return blake2b(obj, digest_size=32, encoder=encoding.RawEncoder)
 
@@ -15,24 +18,6 @@ def digest_bytes(obj):
 def derive_password_key(identity: str, password: str) -> bytes:
     salt = blake2b(identity.encode(), digest_size=16, encoder=encoding.RawEncoder)
     return argon2id.kdf(size=32, password=password.encode(), salt=salt)
-
-
-def encrypt_with_secret(secret: bytes, plaintext: bytes) -> bytes:
-    return SecretBox(secret).encrypt(plaintext, encoder=encoding.URLSafeBase64Encoder)
-
-
-def encrypt_with_password(identity, password, plaintext) -> bytes:
-    password_key: bytes = derive_password_key(identity, password)
-    return encrypt_with_secret(password_key, plaintext)
-
-
-def decrypt_with_secret(secret: bytes, ciphertext: bytes) -> bytes:
-    return SecretBox(secret).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
-
-
-def decrypt_with_password(identity, password, ciphertext) -> bytes:
-    password_key: bytes = derive_password_key(identity, password)
-    return decrypt_with_secret(password_key, ciphertext)
 
 
 def encrypt_grant(public_key: PublicKey, secret_key: PrivateKey) -> bytes:

@@ -91,6 +91,7 @@ def get_secret(username: str, password: bool) -> PrivateKey:
         return PrivateKey(secret, encoder=encoding.URLSafeBase64Encoder)
     except binascii.Error:
         typer.echo(f"Invalid key")
+        raise typer.Abort()
 
 
 def get_mac_address():
