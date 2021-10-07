@@ -63,6 +63,18 @@ class ExpiringTokenException(BackboneException):
 
 
 @dataclass
+class InvalidTokenChallengeException(BackboneException):
+    type: str = "invalid_token_challenge"
+    __status_code__: int = 400
+
+
+@dataclass
+class InvalidTokenResponseException(BackboneException):
+    type: str = "invalid_token_response"
+    __status_code__: int = 400
+
+
+@dataclass
 class ConflictingWorkspaceException(BackboneException):
     workspace: str
     type: str = "conflicting_workspace"
@@ -133,10 +145,10 @@ _ERR_MAP = {cls.type: cls for cls in BackboneException.__subclasses__()}
 def deserialize_exception(exception: dict):
     error_type = exception.get("type")
     if not error_type:
-        raise (f"Unknown error: {exception}")
+        raise NotImplementedError(f"Unknown error: {exception}")
 
     exception_class = _ERR_MAP.get(error_type)
     if not exception:
-        raise NotImplementedError(f"Received unknown error type: {exception}")
+        raise NotImplementedError(f"Unknown error: {exception}")
 
     raise exception_class(**exception)

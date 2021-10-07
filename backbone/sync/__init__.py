@@ -11,8 +11,7 @@ from backbone.sync.user import UserClient
 from backbone.sync.workspace import WorkspaceClient
 from backbone.exceptions import deserialize_exception
 from backbone.models import Permission
-
-__version__ = 0
+from backbone.constants import SERVICE_URL
 
 
 class BackboneAuth(httpx.Auth):
@@ -33,13 +32,11 @@ class BackboneAuth(httpx.Auth):
 
 
 class BackboneClient:
-    _base_url = f"https://backbone.dev/v{__version__}/"
-    # _base_url = f"http://localhost:8000/v{__version__}/"
-
     def __init__(self, workspace: str, username: str, secret_key: PrivateKey):
         # Backbone parameters
         self._secret_key: PrivateKey = secret_key
-        self._public_key: PublicKey = secret_key.public_key
+        self._public_key: PublicKey = self._secret_key.public_key
+
         self._username: str = username
         self._workspace_name: str = workspace
 
@@ -51,30 +48,30 @@ class BackboneClient:
         self.user: UserClient = UserClient(self)
 
         # Properties
-        self.__session: Optional[httpx.Client] = None
+        self._session: Optional[httpx.Client] = None
         self.authenticator: Optional[BackboneAuth] = None
 
-    def __init_session(self):
-        if not self.__session:
-            self.__session = httpx.Client(base_url=self._base_url)
+    def _init_session(self):
+        if not self._session:
+            self._session = httpx.Client(base_url=SERVICE_URL)
 
     @property
     def session(self) -> httpx.Client:
-        self.__init_session()
-        return self.__session
+        self._init_session()
+        return self._session
 
     def __enter__(self):
-        self.__init_session()
+        self._init_session()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
     def close(self):
-        if self.__session:
-            self.__session.close()
+        if self._session:
+            self._session.close()
 
-        self.__session = None
+        self._session = None
 
     @classmethod
     def from_credentials(cls, workspace: str, username: str, password: str) -> "BackboneClient":

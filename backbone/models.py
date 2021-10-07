@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from functools import partial
 from typing import List, Optional
@@ -109,7 +110,7 @@ class WorkspaceCreation(BackboneModel):
 
 
 class Token(BackboneModel):
-    hidden_token: safe_base64()
+    encrypted_value: safe_base64()
     duration: token_duration()
     permissions: Optional[List[Permission]]
 
@@ -119,11 +120,20 @@ class TokenDerivation(BackboneModel):
     duration: token_duration() = Field(default=86_400)
 
 
-class TokenAuthentication(BackboneModel):
+class TokenRequest(BackboneModel):
     permissions: Optional[List[Permission]] = Field(default=None)
     workspace: workspace_name()
     username: user_name()
     duration: token_duration() = Field(default=86_400)
+
+
+class TokenResponse(TokenRequest):
+    response: safe_base64()
+
+
+class TokenChallenge(BackboneModel):
+    challenge: safe_base64()
+    expires_on: datetime
 
 
 class Action(str, Enum):

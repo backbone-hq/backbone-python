@@ -3,8 +3,8 @@ from nacl import encoding
 from nacl.exceptions import CryptoError
 
 from backbone.sync import Permission
-from backbone.exceptions import ConflictingUserException, UnauthorizedTokenException
-from backbone.models import User
+from backbone import exceptions
+from backbone import models
 from tests.sync.conftest import ADMIN_SK, ADMIN_USERNAME
 from tests.sync.utilities import random_lower
 
@@ -19,7 +19,7 @@ def test_user_read(client, create_user):
 
     # User read requires a valid token, but no specific permissions
     client.authenticate(permissions=[])
-    user: User = client.user.self()
+    user: models.User = client.user.self()
     assert user.name == ADMIN_USERNAME
     assert user.public_key == ADMIN_SK.public_key.encode(encoder=encoding.URLSafeBase64Encoder).decode()
     assert user.permissions == [Permission.ROOT]
@@ -31,14 +31,14 @@ def test_user_creation_and_deletion(client, create_user):
     test_client = create_user(client, test_user, permissions=[])
 
     # Test user cannot delete themselves
-    with pytest.raises(UnauthorizedTokenException):
+    with pytest.raises(exceptions.UnauthorizedTokenException):
         test_client.user.delete(username=test_user, force=True)
 
     # User with USER_MANAGE can delete the user
     client.user.delete(username=test_user, force=True)
 
     # Test user cannot authenticate
-    with pytest.raises(CryptoError):
+    with pytest.raises(exceptions.InvalidTokenResponseException):
         test_client.authenticate()
 
 
@@ -48,23 +48,23 @@ def test_user_permission_modification(client, create_user):
     test_client = create_user(client, test_user, permissions=[Permission.STORE_USE])
 
     # Validate the test user's privileges
-    user: User = test_client.user.self()
+    user: models.User = test_client.user.self()
     assert user.permissions == [Permission.STORE_USE]
 
     # De-escalate the test user's privileges
     client.user.modify(test_user, permissions=[])
-    user: User = test_client.user.self()
+    user: models.User = test_client.user.self()
     assert user.permissions == []
 
     # Re-escalate the test user's privileges
     client.user.modify(test_user, permissions=[Permission.ROOT])
-    user: User = test_client.user.self()
+    user: models.User = test_client.user.self()
     assert user.permissions == [Permission.ROOT]
 
 
 @pytest.mark.sync
 def test_duplicate_user_creation(client, create_user):
-    with pytest.raises(ConflictingUserException):
+    with pytest.raises(exceptions.ConflictingUserException):
         create_user(client, ADMIN_USERNAME, permissions=[Permission.STORE_USE])
 
 
@@ -95,5 +95,5 @@ def test_user_creation_fails_without_user_manage_permission(client, create_user)
     # Authenticate the client
     client.authenticate(permissions=[])
 
-    with pytest.raises(UnauthorizedTokenException):
+    with pytest.raises(exceptions.UnauthorizedTokenException):
         create_user(client, "test", permissions=[])

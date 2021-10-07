@@ -5,6 +5,7 @@ from nacl.public import Box, PrivateKey, PublicKey, SealedBox
 from nacl.pwhash import argon2id
 from nacl.secret import SecretBox
 from nacl.utils import encoding, random
+from backbone.constants import SERVICE_ROOT_PK
 
 
 def digest_bytes(obj):
@@ -43,9 +44,12 @@ def decrypt_grant(public_key: PublicKey, secret_key: PrivateKey, ciphertext: byt
     return Box(secret_key, public_key).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
 
 
-def decrypt_hidden_token(secret_key: PrivateKey, ciphertext: bytes) -> bytes:
-    auth_box_pk = PublicKey(b"etHbHeOUNpTao_ACalJEpsBQc19QTlr68GzSzNPKWn4=", encoder=encoding.URLSafeBase64Encoder)
-    return Box(secret_key, auth_box_pk).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
+def encrypt_token_challenge(secret_key: PrivateKey, plaintext: bytes) -> bytes:
+    return Box(secret_key, SERVICE_ROOT_PK).encrypt(plaintext, encoder=encoding.URLSafeBase64Encoder)
+
+
+def decrypt_token(secret_key: PrivateKey, ciphertext: bytes) -> bytes:
+    return Box(secret_key, SERVICE_ROOT_PK).decrypt(ciphertext, encoder=encoding.URLSafeBase64Encoder)
 
 
 def encrypt_entry(plaintext: str, *public_keys: PublicKey) -> (bytes, List[Tuple[bytes, bytes]]):
